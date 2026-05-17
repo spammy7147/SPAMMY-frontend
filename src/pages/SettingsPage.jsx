@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/AuthContext'
-
-const API = ''
+import { Navbar } from '../components/layout/Navbar'
+import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
     const navigate = useNavigate()
     const { user, checkAuth } = useAuth()
     const [characters, setCharacters] = useState([])
     const [loading, setLoading] = useState(true)
-    
-    // 모달 상태: { show: boolean, charId: number | null, charName: string }
     const [confirmModal, setConfirmModal] = useState({ show: false, charId: null, charName: '' })
 
     const fetchCharacters = async () => {
         try {
-            const res = await fetch('/auth/characters', { credentials: 'include' })
+            const res = await fetch('/api/auth/characters', { credentials: 'include' })
             if (res.ok) {
                 const data = await res.json()
                 setCharacters(data)
@@ -34,9 +32,9 @@ export default function SettingsPage() {
     const handleSetMain = async () => {
         const { charId } = confirmModal
         if (!charId) return
-
+        
         try {
-            const res = await fetch(`/auth/characters/${charId}/main`, { 
+            const res = await fetch(`/api/auth/characters/${charId}/main`, { 
                 method: 'PATCH',
                 credentials: 'include'
             })
@@ -46,94 +44,96 @@ export default function SettingsPage() {
                 setConfirmModal({ show: false, charId: null, charName: '' })
             }
         } catch (error) {
-            alert('메인 캐릭터 변경 실패')
+            console.error('API Error:', error)
         }
     }
 
     const handleUnlink = async (charId) => {
         if (!confirm('이 캐릭터를 연결 해제하시겠습니까?')) return
+        
         try {
-            const res = await fetch(`/auth/characters/${charId}`, { 
+            const res = await fetch(`/api/auth/characters/${charId}`, { 
                 method: 'DELETE',
                 credentials: 'include'
             })
             if (res.ok) {
                 fetchCharacters()
-            } else {
-                const msg = await res.text()
-                alert(msg || '연결 해제 실패')
             }
         } catch (error) {
-            alert('연결 해제 중 오류 발생')
+            console.error('API Error:', error)
         }
     }
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-            <p style={{ color: '#94a3b8' }}>설정 불러오는 중...</p>
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="w-11 h-11 border-2 border-border border-t-primary rounded-full animate-spin-fast"></div>
         </div>
     )
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: '"Inter", system-ui, sans-serif', padding: '40px 24px' }}>
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div className="min-h-screen bg-background text-foreground font-sans">
+            <Navbar />
+
+            <main className="max-w-200 mx-auto py-12 px-8">
                 
                 {/* 헤더 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+                <div className="flex items-end justify-between mb-10">
                     <div>
-                        <button 
-                            onClick={() => navigate('/dashboard')}
-                            style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', cursor: 'pointer', padding: 0, marginBottom: '8px', display: 'block' }}
-                        >← Back to Dashboard</button>
-                        <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0f172a' }}>Account Settings</h1>
+                        <div 
+                            onClick={() => navigate('/')}
+                            className="text-foreground-dim text-xs cursor-pointer mb-2 tracking-wider hover:text-foreground transition-colors"
+                        >← BACK TO PORTFOLIO</div>
+                        <h1 className="m-0 text-3xl font-extrabold text-foreground tracking-tight">Account Settings</h1>
                     </div>
                     <button 
-                        onClick={() => window.location.href = '/auth/link'}
-                        style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
-                    >+ Add New Character</button>
+                        onClick={() => window.location.href = '/api/auth/link'}
+                        className="bg-transparent border border-success text-success px-4 py-2 rounded text-[13px] font-bold cursor-pointer hover:bg-success/5 transition-colors"
+                    >+ Add Character</button>
                 </div>
 
                 {/* 캐릭터 관리 섹션 */}
-                <div style={{ background: '#fff', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#fcfcfd' }}>
-                        <h2 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#334155' }}>Linked Characters</h2>
-                        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>이 그룹에 연결된 모든 EVE 캐릭터들입니다.</p>
+                <div className="bg-card border border-border rounded overflow-hidden">
+                    <div className="p-5 px-6 border-b border-border bg-black/20">
+                        <h2 className="m-0 text-sm font-bold text-foreground-muted tracking-wider uppercase">Linked Characters</h2>
+                        <p className="m-0 mt-1 text-[11px] text-foreground-dim">연동된 캐릭터들을 관리하고 메인 계정을 설정합니다.</p>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div className="flex flex-col">
                         {characters.map((char, index) => (
-                            <div key={char.characterId} style={{ 
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                                padding: '20px 24px', borderBottom: index === characters.length - 1 ? 'none' : '1px solid #f1f5f9',
-                                background: char.main ? '#f8faff' : 'transparent'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div key={char.characterId} className={cn(
+                                "flex items-center justify-between p-5 px-6 border-b border-primary/10 last:border-b-0 transition-colors",
+                                char.main ? "bg-primary/5" : "bg-transparent"
+                            )}>
+                                <div className="flex items-center gap-4">
                                     <img 
-                                        src={char.portraitUrl} 
+                                        src={char.portraitUrl || `https://images.evetech.net/characters/${char.characterId}/portrait?size=64`} 
                                         alt={char.characterName} 
-                                        style={{ width: '44px', height: '44px', borderRadius: '10px', border: char.main ? '2px solid #2563eb' : '1px solid #e2e8f0' }}
+                                        className={cn(
+                                            "w-12 h-12 rounded border",
+                                            char.main ? "border-primary" : "border-border"
+                                        )}
                                     />
                                     <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span style={{ fontWeight: '700', color: '#0f172a' }}>{char.characterName}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-foreground text-base">{char.characterName}</span>
                                             {char.main && (
-                                                <span style={{ fontSize: '10px', background: '#2563eb', color: '#fff', padding: '1px 6px', borderRadius: '4px', fontWeight: '700' }}>MAIN</span>
+                                                <span className="text-[9px] bg-primary text-background px-1.5 py-0.5 rounded font-extrabold tracking-wider">MAIN</span>
                                             )}
                                         </div>
-                                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Corp ID: {char.corporationId}</div>
+                                        <div className="text-[11px] text-foreground-dim mt-0.5">Corp ID: {char.corporationId}</div>
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '12px' }}>
+                                <div className="flex gap-2">
                                     {!char.main && (
                                         <button 
                                             onClick={() => setConfirmModal({ show: true, charId: char.characterId, charName: char.characterName })}
-                                            style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#475569', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                                            className="bg-muted border border-border text-foreground-muted px-3 py-1.5 rounded text-xs font-bold cursor-pointer hover:bg-border/20 transition-colors"
                                         >Set as Main</button>
                                     )}
                                     <button 
                                         onClick={() => handleUnlink(char.characterId)}
-                                        style={{ background: '#fff', border: '1px solid #fee2e2', color: '#ef4444', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                                        className="bg-transparent border border-destructive/30 text-destructive px-3 py-1.5 rounded text-xs font-bold cursor-pointer hover:bg-destructive/10 transition-colors"
                                     >Unlink</button>
                                 </div>
                             </div>
@@ -141,62 +141,36 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '24px', padding: '0 8px' }}>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
-                        SPAMMY Account ID: {user?.userId} · {characters.length} characters linked
+                <div className="mt-8 text-center">
+                    <p className="text-[10px] text-foreground-dim tracking-wider">
+                        SPAMMY Account ID: {user?.userId || 'GUEST_MODE'} · {characters.length} characters linked
                     </p>
                 </div>
-            </div>
+            </main>
 
-            {/* 세련된 커스텀 확인 모달 */}
+            {/* 다크 테마 커스텀 모달 */}
             {confirmModal.show && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-                    animation: 'fadeIn 0.2s ease-out'
-                }}>
-                    <div style={{
-                        background: '#fff', borderRadius: '24px', padding: '32px',
-                        width: '90%', maxWidth: '400px',
-                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                        textAlign: 'center',
-                        transform: 'translateY(0)',
-                        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-                    }}>
-                        <div style={{ 
-                            width: '64px', height: '64px', background: '#eff6ff', 
-                            borderRadius: '20px', display: 'flex', alignItems: 'center', 
-                            justifyContent: 'center', fontSize: '32px', margin: '0 auto 20px' 
-                        }}>👑</div>
-                        <h3 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: '800', color: '#0f172a' }}>메인 캐릭터 변경</h3>
-                        <p style={{ margin: '0 0 32px', fontSize: '15px', color: '#64748b', lineHeight: '1.6' }}>
-                            <strong style={{ color: '#2563eb', fontWeight: '700' }}>{confirmModal.charName}</strong> 캐릭터를<br />
-                            그룹의 메인 계정으로 설정할까요?
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[1000] animate-in fade-in duration-200">
+                    <div className="bg-card border border-border rounded p-10 w-[90%] max-w-[400px] text-center shadow-2xl animate-in slide-in-from-bottom-4 duration-300 ease-out">
+                        <div className="text-3xl mb-4">👑</div>
+                        <h3 className="m-0 mb-2 text-lg font-extrabold text-foreground tracking-wide">메인 캐릭터 변경</h3>
+                        <p className="m-0 mb-8 text-sm text-foreground-muted leading-relaxed">
+                            <span className="text-primary font-bold">{confirmModal.charName}</span> 캐릭터를<br />
+                            포트폴리오의 메인 계정으로 설정하시겠습니까?
                         </p>
-                        <div style={{ display: 'flex', gap: '12px' }}>
+                        <div className="flex gap-2.5">
                             <button 
                                 onClick={() => setConfirmModal({ show: false, charId: null, charName: '' })}
-                                style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: '15px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                            >취소</button>
+                                className="flex-1 py-3 rounded border border-border bg-transparent text-foreground-dim text-sm font-bold cursor-pointer hover:text-foreground transition-colors"
+                            >Cancel</button>
                             <button 
                                 onClick={handleSetMain}
-                                style={{ flex: 1, padding: '14px', borderRadius: '14px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '15px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'}
-                                onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}
-                            >설정하기</button>
+                                className="flex-1 py-3 rounded border-none bg-primary text-background text-sm font-extrabold cursor-pointer hover:bg-primary/90 transition-colors"
+                            >Confirm</button>
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* 단순 애니메이션용 스타일 태그 */}
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-            `}</style>
         </div>
     )
 }

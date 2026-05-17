@@ -1,260 +1,95 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
-@custom-variant dark (&:is(.dark *));
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+@theme {
+  --color-background: var(--bg);
+  --color-card: var(--bg2);
+  --color-muted: var(--bg3);
+  --color-border: var(--border);
+  --color-border-hover: var(--border2);
+  
+  --color-primary: var(--accent);
+  --color-secondary: var(--accent2);
+  --color-success: var(--accent3);
+  --color-destructive: var(--danger);
+  
+  --color-foreground: var(--text);
+  --color-foreground-muted: var(--text2);
+  --color-foreground-dim: var(--text3);
+  
+  --color-gold: var(--gold);
+  --color-magenta: var(--magenta);
+
+  --font-sans: 'Noto Sans KR', sans-serif;
+  --font-mono: 'Share+Tech+Mono', monospace;
+  --font-display: 'Rajdhani', sans-serif;
+
+  --animate-spin-fast: spin 0.8s linear infinite;
+}
 
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: oklch(0.922 0 0);
-  --code-bg: #f4f3ec;
-  --accent: oklch(0.97 0 0);
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-
-  --background: oklch(1 0 0);
-
-  --foreground: oklch(0.145 0 0);
-
-  --card: oklch(1 0 0);
-
-  --card-foreground: oklch(0.145 0 0);
-
-  --popover: oklch(1 0 0);
-
-  --popover-foreground: oklch(0.145 0 0);
-
-  --primary: oklch(0.205 0 0);
-
-  --primary-foreground: oklch(0.985 0 0);
-
-  --secondary: oklch(0.97 0 0);
-
-  --secondary-foreground: oklch(0.205 0 0);
-
-  --muted: oklch(0.97 0 0);
-
-  --muted-foreground: oklch(0.556 0 0);
-
-  --accent-foreground: oklch(0.205 0 0);
-
-  --destructive: oklch(0.577 0.245 27.325);
-
-  --input: oklch(0.922 0 0);
-
-  --ring: oklch(0.708 0 0);
-
-  --chart-1: oklch(0.809 0.105 251.813);
-
-  --chart-2: oklch(0.623 0.214 259.815);
-
-  --chart-3: oklch(0.546 0.245 262.881);
-
-  --chart-4: oklch(0.488 0.243 264.376);
-
-  --chart-5: oklch(0.424 0.199 265.638);
-
-  --radius: 0.625rem;
-
-  --sidebar: oklch(0.985 0 0);
-
-  --sidebar-foreground: oklch(0.145 0 0);
-
-  --sidebar-primary: oklch(0.205 0 0);
-
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-
-  --sidebar-accent: oklch(0.97 0 0);
-
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-
-  --sidebar-border: oklch(0.922 0 0);
-
-  --sidebar-ring: oklch(0.708 0 0)
+  /* Default: TokyoNight Storm (Dark) */
+  --bg: #1a1b26;
+  --bg2: #16161e;
+  --bg3: #24283b;
+  --border: #3b4261;
+  --border2: #565f89;
+  --accent: #7aa2f7;
+  --accent2: #00ffff;
+  --accent3: #b9f27c;
+  --text: #ffffff;
+  --text2: #cfcfff;
+  --text3: #9aa5ce;
+  --danger: #ff757f;
+  --gold: #ff9e64;
+  --magenta: #bb9af7;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
-  margin: 0;
-}
-
-#root {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@theme inline {
-  --font-sans: 'Geist Variable', sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+[data-theme='light'] {
+  --bg: #fdfbf7;           /* 밝은 아이보리 배경 */
+  --bg2: #ffffff;          /* 순백색 (컨텐츠 영역) */
+  --bg3: #f7f2ed;          /* 대비용 연한 베이지 */
+  --border: #e6ddd8;       /* 더 명확한 경계선 */
+  --border2: #cfc2bc;      /* 강조된 경계선 */
+  
+  --accent: #2563eb;       
+  --accent2: #0284c7;
+  --accent3: #047857;      /* 더 짙은 그린 (가시성 확보) */
+  
+  --text: #1a1614;         /* 거의 블랙에 가까운 짙은 브라운 (최상급 가시성) */
+  --text2: #4a3f3b;         /* 명확한 보조 텍스트 */
+  --text3: #857570;         /* 충분히 읽히는 연한 텍스트 */
+  
+  --danger: #b91c1c;       
+  --gold: #b45309;         /* 더 짙은 골드 */
+  --magenta: #6d28d9;      
+  --teal: #0f766e;
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;}
   body {
-    @apply bg-background text-foreground;}
-  html {
-    @apply font-sans;}}
+    @apply m-0 p-0 bg-background text-foreground font-sans transition-colors duration-300 antialiased;
+  }
+
+  button {
+    @apply cursor-pointer font-sans transition-all duration-200;
+  }
+
+  input, select {
+    @apply font-sans;
+    color-scheme: light dark;
+  }
+
+  /* 스크롤바 커스텀 */
+  ::-webkit-scrollbar { 
+    @apply w-2 h-2; 
+  }
+  ::-webkit-scrollbar-track { 
+    @apply bg-background; 
+  }
+  ::-webkit-scrollbar-thumb { 
+    @apply bg-border rounded; 
+  }
+}
+
