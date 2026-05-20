@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 const AuthContext = createContext();
 
@@ -7,7 +7,15 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const checkAuth = useCallback(async () => {
+    const lastCheckTimeRef = useRef(0);
+
+    const checkAuth = useCallback(async (force = false) => {
+        const now = Date.now();
+        if (!force && now - lastCheckTimeRef.current < 2000) {
+            return;
+        }
+        lastCheckTimeRef.current = now;
+
         try {
             const res = await fetch('/api/auth/me', { credentials: 'include' });
             if (res.ok) {

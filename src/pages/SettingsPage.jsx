@@ -42,7 +42,7 @@ export default function SettingsPage() {
             })
             if (res.ok) {
                 await fetchCharacters()
-                await checkAuth()
+                await checkAuth(true)
                 setConfirmModal({ show: false, charId: null, charName: '' })
             }
         } catch (error) {
