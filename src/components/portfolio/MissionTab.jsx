@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 
 export function MissionTab({ apiBase }) {
+    const { iskAbbreviation } = useConfig()
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
 
@@ -36,9 +38,9 @@ export function MissionTab({ apiBase }) {
 
     const missionStats = [
         { label: '총 미션 수 (30일)', value: data.stats.totalCount, unit: '개', color: 'text-primary' },
-        { label: '미션 ISK 수입', value: formatISK(data.stats.totalIsk), unit: 'ISK', color: 'text-success' },
+        { label: '미션 ISK 수입', value: formatISK(data.stats.totalIsk, iskAbbreviation), unit: 'ISK', color: 'text-success' },
         { label: '추정 LP 획득', value: data.stats.totalLp.toLocaleString(), unit: 'LP', color: 'text-gold' },
-        { label: '추정 LP 가치', value: formatISK(data.stats.totalLpValue), unit: 'ISK', color: 'text-gold' },
+        { label: '추정 LP 가치', value: formatISK(data.stats.totalLpValue, iskAbbreviation), unit: 'ISK', color: 'text-gold' },
     ]
 
     return (
@@ -79,9 +81,9 @@ export function MissionTab({ apiBase }) {
                                 <tr key={i} className="border-b border-border bg-card hover:bg-border/5 transition-colors">
                                     <td className="p-3 text-foreground font-semibold">{log.date}</td>
                                     <td className="p-3 text-right text-primary font-bold">{log.count}개</td>
-                                    <td className="p-3 text-right text-success font-bold">{formatISK(log.iskIncome)}</td>
+                                    <td className="p-3 text-right text-success font-bold">{formatISK(log.iskIncome, iskAbbreviation)}</td>
                                     <td className="p-3 text-right text-gold font-bold">{log.lpEarned.toLocaleString()} LP</td>
-                                    <td className="p-3 text-right text-foreground font-extrabold">{formatISK(log.totalIncome)}</td>
+                                    <td className="p-3 text-right text-foreground font-extrabold">{formatISK(log.totalIncome, iskAbbreviation)}</td>
                                 </tr>
                             ))}
                         </tbody>

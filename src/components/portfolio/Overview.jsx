@@ -1,6 +1,8 @@
 import { formatISK } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 
 export function Overview({ totalBalance }) {
+    const { iskAbbreviation } = useConfig();
     return (
         <div className="bg-card border border-border rounded p-8 mb-5 relative overflow-hidden text-center">
             {/* 상단 강조 라인 */}
@@ -8,7 +10,7 @@ export function Overview({ totalBalance }) {
             
             <div className="mt-2.5">
                 <span className="text-[48px] font-bold text-primary leading-none">
-                    {formatISK(totalBalance)}
+                    {formatISK(totalBalance, iskAbbreviation)}
                 </span>
                 <span className="text-xl text-foreground-muted ml-2.5 font-semibold">ISK</span>
             </div>

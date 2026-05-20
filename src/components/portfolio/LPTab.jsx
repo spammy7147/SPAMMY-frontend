@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 
 export function LPTab({ apiBase }) {
+    const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterLps: [] })
     const [loading, setLoading] = useState(true)
 
@@ -41,7 +43,7 @@ export function LPTab({ apiBase }) {
                         <div className="text-right">
                             <div className="text-[11px] text-foreground-dim font-semibold">{charLp.totalLp.toLocaleString()} LP</div>
                             <div className="text-[13px] text-gold font-extrabold">
-                                ≈ {formatISK(charLp.totalIskValue)} ISK
+                                ≈ {formatISK(charLp.totalIskValue, iskAbbreviation)} ISK
                             </div>
                         </div>
                     </div>
@@ -54,7 +56,7 @@ export function LPTab({ apiBase }) {
                                 </div>
                                 <div className="text-right">
                                     <div className="text-[13px] text-gold font-bold">{f.lp.toLocaleString()} LP</div>
-                                    <div className="text-[11px] text-primary font-semibold">{formatISK(f.value)} ISK</div>
+                                    <div className="text-[11px] text-primary font-semibold">{formatISK(f.value, iskAbbreviation)} ISK</div>
                                 </div>
                             </div>
                         ))}

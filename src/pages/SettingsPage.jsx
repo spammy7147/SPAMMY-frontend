@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/AuthContext'
+import { useConfig } from '../store/ConfigContext'
 import { Navbar } from '../components/layout/Navbar'
 import { cn } from '@/lib/utils'
 
 export default function SettingsPage() {
     const navigate = useNavigate()
     const { user, checkAuth } = useAuth()
+    const { iskAbbreviation, timezone, updateSettings } = useConfig()
     const [characters, setCharacters] = useState([])
     const [loading, setLoading] = useState(true)
     const [confirmModal, setConfirmModal] = useState({ show: false, charId: null, charName: '' })
@@ -92,7 +94,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 캐릭터 관리 섹션 */}
-                <div className="bg-card border border-border rounded overflow-hidden">
+                <div className="bg-card border border-border rounded overflow-hidden mb-8">
                     <div className="p-5 px-6 border-b border-border bg-black/20">
                         <h2 className="m-0 text-sm font-bold text-foreground-muted tracking-wider uppercase">Linked Characters</h2>
                         <p className="m-0 mt-1 text-[11px] text-foreground-dim">연동된 캐릭터들을 관리하고 메인 계정을 설정합니다.</p>
@@ -138,6 +140,51 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+
+                {/* 설정 섹션 */}
+                <div className="bg-card border border-border rounded overflow-hidden">
+                    <div className="p-5 px-6 border-b border-border bg-black/20">
+                        <h2 className="m-0 text-sm font-bold text-foreground-muted tracking-wider uppercase">Display Settings</h2>
+                        <p className="m-0 mt-1 text-[11px] text-foreground-dim">UI에 표시되는 데이터 형식을 설정합니다.</p>
+                    </div>
+
+                    <div className="p-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm font-bold text-foreground">ISK 금액 축약 표시</div>
+                                <div className="text-[11px] text-foreground-dim mt-0.5">금액을 K, M, B 단위로 줄여서 표시합니다. (예: 1,500,000 → 1.50 M)</div>
+                            </div>
+                            <button 
+                                onClick={() => updateSettings({ iskAbbreviation: !iskAbbreviation, timezone })}
+                                className={cn(
+                                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                                    iskAbbreviation ? "bg-primary" : "bg-muted border border-border"
+                                )}
+                            >
+                                <span className={cn(
+                                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                    iskAbbreviation ? "translate-x-6" : "translate-x-1"
+                                )} />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-primary/5">
+                            <div>
+                                <div className="text-sm font-bold text-foreground">타임존 설정</div>
+                                <div className="text-[11px] text-foreground-dim mt-0.5">날짜 및 시간 표시 기준을 설정합니다.</div>
+                            </div>
+                            <select 
+                                value={timezone}
+                                onChange={(e) => updateSettings({ iskAbbreviation, timezone: e.target.value })}
+                                className="bg-muted border border-border text-foreground text-[12px] px-3 py-1.5 rounded outline-none focus:border-primary transition-colors"
+                            >
+                                <option value="UTC">UTC (EVE Time)</option>
+                                <option value="KST">KST (한국 시간)</option>
+                                <option value="LOCAL">Local Time (브라우저 기준)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 

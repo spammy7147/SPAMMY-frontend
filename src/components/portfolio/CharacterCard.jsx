@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { formatISK } from '../../lib/utils'
+import { formatISK, formatDate } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 import { cn } from '@/lib/utils'
 
 export function CharacterCard({ char, onUpdateOmega }) {
+    const { iskAbbreviation, timezone } = useConfig();
     const [isEditing, setIsEditing] = useState(false);
 
     // 남은 날짜 계산 함수
@@ -13,20 +15,6 @@ export function CharacterCard({ char, onUpdateOmega }) {
     };
 
     const remainingDays = getRemainingDays(char.omegaExpiresAt);
-
-    // 날짜 포맷팅 함수 (사용자 로케일 기준)
-    const formatLocalTime = (dateStr) => {
-        if (!dateStr) return 'N/A';
-        const date = new Date(dateStr);
-        return date.toLocaleString('ko-KR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-    };
 
     // 날짜 연장 함수
     const addDuration = (days, months = 0) => {
@@ -93,7 +81,7 @@ export function CharacterCard({ char, onUpdateOmega }) {
             <div className="px-4 py-3.5">
                 <div className="flex justify-between items-center py-1.5 border-b border-primary/10">
                     <span className="text-foreground-muted text-[11px] font-semibold">지갑</span>
-                    <span className="text-success text-sm font-bold">{formatISK(char.balance)} ISK</span>
+                    <span className="text-success text-sm font-bold">{formatISK(char.balance, iskAbbreviation)} ISK</span>
                 </div>
 
                 <div className="py-2 border-b border-primary/10">
@@ -111,7 +99,7 @@ export function CharacterCard({ char, onUpdateOmega }) {
                                 >📅</button>
                             </div>
                             <div className="text-[10px] text-foreground-dim mt-0.5 font-medium">
-                                {formatLocalTime(char.omegaExpiresAt)}
+                                {formatDate(char.omegaExpiresAt, timezone) || 'N/A'}
                             </div>
                         </div>
                     </div>
@@ -145,7 +133,7 @@ export function CharacterCard({ char, onUpdateOmega }) {
                 <div className="flex justify-between items-center py-1.5">
                     <span className="text-foreground-muted text-[11px] font-semibold">마지막 동기화</span>
                     <span className="text-foreground text-[12px] font-medium">
-                        {char.lastSyncedAt ? new Date(char.lastSyncedAt).toLocaleDateString() : 'Never'}
+                        {char.lastSyncedAt ? formatDate(char.lastSyncedAt, timezone) : 'Never'}
                     </span>
                 </div>
             </div>

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { formatISK } from '../../lib/utils'
+import { formatISK, formatDate } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 import { cn } from '@/lib/utils'
 
 export function TransactionsTab({ apiBase }) {
+    const { iskAbbreviation, timezone } = useConfig();
     const [data, setData] = useState({ entries: [], typeSummary: {} })
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -83,7 +85,7 @@ export function TransactionsTab({ apiBase }) {
                         {filteredEntries.length > 0 ? (
                             filteredEntries.map((entry, i) => (
                                 <tr key={i} className="border-b border-border bg-card hover:bg-border/5 transition-colors">
-                                    <td className="px-3 py-2.5 text-foreground-dim text-[11px]">{new Date(entry.date).toLocaleString()}</td>
+                                    <td className="px-3 py-2.5 text-foreground-dim text-[11px]">{formatDate(entry.date, timezone)}</td>
                                     <td className="px-3 py-2.5 text-foreground-muted text-[12px]">{entry.charName}</td>
                                     <td className="px-3 py-2.5">
                                         <span className={cn(
@@ -98,12 +100,12 @@ export function TransactionsTab({ apiBase }) {
                                         <div className="text-[10px] text-foreground-dim">{entry.locationName}</div>
                                     </td>
                                     <td className="px-3 py-2.5 text-right text-foreground-muted">{entry.quantity.toLocaleString()}</td>
-                                    <td className="px-3 py-2.5 text-right text-foreground-muted">{formatISK(entry.unitPrice)}</td>
+                                    <td className="px-3 py-2.5 text-right text-foreground-muted">{formatISK(entry.unitPrice, iskAbbreviation)}</td>
                                     <td className={cn(
                                         "px-3 py-2.5 text-right font-bold",
                                         entry.isBuy ? "text-destructive" : "text-success"
                                     )}>
-                                        {entry.isBuy ? '-' : '+'}{formatISK(entry.totalPrice)}
+                                        {entry.isBuy ? '-' : '+'}{formatISK(entry.totalPrice, iskAbbreviation)}
                                     </td>
                                 </tr>
                             ))

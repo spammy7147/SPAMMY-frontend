@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { formatISK } from '../../lib/utils'
+import { formatISK, formatDate } from '../../lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 import { cn } from '@/lib/utils'
 
 export function OrdersTab({ apiBase }) {
+    const { iskAbbreviation, timezone } = useConfig();
     const [data, setData] = useState({ entries: [] })
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -97,7 +99,7 @@ export function OrdersTab({ apiBase }) {
                         {filteredEntries.length > 0 ? (
                             filteredEntries.map((entry, i) => (
                                 <tr key={i} className="border-b border-border bg-card hover:bg-border/5 transition-colors">
-                                    <td className="px-3 py-2.5 text-foreground-dim text-[11px]">{new Date(entry.issued).toLocaleString()}</td>
+                                    <td className="px-3 py-2.5 text-foreground-dim text-[11px]">{formatDate(entry.issued, timezone)}</td>
                                     <td className="px-3 py-2.5 text-foreground-muted text-[12px]">{entry.charName}</td>
                                     <td className="px-3 py-2.5">
                                         <span className={cn(
@@ -115,7 +117,7 @@ export function OrdersTab({ apiBase }) {
                                         <span className="font-bold text-foreground">{entry.volumeRemain.toLocaleString()}</span>
                                         <span className="text-foreground-dim ml-1">/ {entry.volumeTotal.toLocaleString()}</span>
                                     </td>
-                                    <td className="px-3 py-2.5 text-right font-mono text-foreground-muted">{formatISK(entry.price)}</td>
+                                    <td className="px-3 py-2.5 text-right font-mono text-foreground-muted">{formatISK(entry.price, iskAbbreviation)}</td>
                                     <td className="px-3 py-2.5 text-center">
                                         <span className={cn(
                                             "text-[9px] px-1.5 py-0.5 rounded-[2px] border font-bold uppercase",

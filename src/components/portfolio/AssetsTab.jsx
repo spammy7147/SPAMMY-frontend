@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
 import { cn } from '@/lib/utils'
+import { useConfig } from '../../store/ConfigContext'
 
 export function AssetsTab({ apiBase }) {
+    const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterAssets: [] })
     const [loading, setLoading] = useState(true)
     const [expandedLocs, setExpandedLocs] = useState({})
@@ -75,41 +77,42 @@ export function AssetsTab({ apiBase }) {
                                 return (
                                     <div key={idx} className="bg-card border border-border rounded overflow-hidden">
                                         <div 
-                                            onClick={() => toggleLoc(locId)} 
-                                            className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors"
+                                        onClick={() => toggleLoc(locId)} 
+                                        className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors"
                                         >
-                                            <div className="flex items-center gap-2.5">
-                                                <span className="text-[10px] text-foreground-dim w-3">
-                                                    {isExpanded ? '▼' : '▶'}
-                                                </span>
-                                                <span className="text-[13px] font-bold text-foreground">{loc.locationName}</span>
-                                            </div>
-                                            <span className="text-xs text-gold font-extrabold">{formatISK(loc.locationTotalValue)} ISK</span>
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-[10px] text-foreground-dim w-3">
+                                                {isExpanded ? '▼' : '▶'}
+                                            </span>
+                                            <span className="text-[13px] font-bold text-foreground">{loc.locationName}</span>
+                                        </div>
+                                        <span className="text-xs text-gold font-extrabold">{formatISK(loc.locationTotalValue, iskAbbreviation)} ISK</span>
                                         </div>
                                         {isExpanded && (
-                                            <div className="bg-card animate-in fade-in duration-200">
-                                                {filteredItems.map(item => (
-                                                    <div key={item.id} className="flex px-10 py-2.5 text-xs border-b border-border hover:bg-border/5">
-                                                        <span className="flex-1 text-foreground font-medium">{item.name}</span>
-                                                        <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
-                                                        <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value)}</span>
+                                        <div className="bg-card animate-in fade-in duration-200">
+                                            {filteredItems.map(item => (
+                                                <div key={item.id} className="flex px-10 py-2.5 text-xs border-b border-border hover:bg-border/5">
+                                                    <span className="flex-1 text-foreground font-medium">{item.name}</span>
+                                                    <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
+                                                    <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
+                                                </div>
+                                            ))}
+                                            {filteredContainers.map((cont, cIdx) => (
+                                                <div key={cIdx}>
+                                                    <div className="flex px-10 py-2 text-xs bg-muted text-foreground border-b border-border">
+                                                        <span className="flex-1 font-extrabold">📦 {cont.name}</span>
+                                                        <span className="w-[120px] text-right font-bold">
+                                                            {formatISK(cont.totalValue, iskAbbreviation)}
+                                                        </span>
                                                     </div>
-                                                ))}
-                                                {filteredContainers.map((cont, cIdx) => (
-                                                    <div key={cIdx}>
-                                                        <div className="flex px-10 py-2 text-xs bg-muted text-foreground border-b border-border">
-                                                            <span className="flex-1 font-extrabold">📦 {cont.name}</span>
-                                                            <span className="w-[120px] text-right font-bold">
-                                                                {formatISK(cont.totalValue)}
-                                                            </span>
+                                                    {cont.contents.map(si => (
+                                                        <div key={si.id} className="flex px-[60px] py-2 text-[11px] text-foreground-muted border-b border-border hover:bg-border/5">
+                                                            <span className="flex-1 font-medium">└ {si.name}</span>
+                                                            <span className="w-[60px] text-right">{si.qty}</span>
+                                                            <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(si.value, iskAbbreviation)}</span>
                                                         </div>
-                                                        {cont.contents.map(si => (
-                                                            <div key={si.id} className="flex px-[60px] py-2 text-[11px] text-foreground-muted border-b border-border hover:bg-border/5">
-                                                                <span className="flex-1 font-medium">└ {si.name}</span>
-                                                                <span className="w-[60px] text-right">{si.qty}</span>
-                                                                <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(si.value)}</span>
-                                                            </div>
-                                                        ))}
+                                                    ))}
+
                                                     </div>
                                                 ))}
                                             </div>
