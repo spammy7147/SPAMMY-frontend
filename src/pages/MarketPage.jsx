@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Navbar } from '../components/layout/Navbar'
 import { JournalTab } from '../components/portfolio/JournalTab'
 import { OrdersTab } from '../components/portfolio/OrdersTab'
+import { MarketBrowser } from '../components/market/MarketBrowser'
 import { cn } from '@/lib/utils'
 
 export default function MarketPage() {
-    const [activeTab, setActiveTab] = useState('journal')
+    const [activeTab, setActiveTab] = useState('browser')
 
     const tabs = [
+        { id: 'browser', label: 'Market Browser' },
         { id: 'journal', label: 'Wallet Journal' },
         { id: 'orders', label: 'Market Orders' },
     ]
@@ -34,6 +36,7 @@ export default function MarketPage() {
                 </div>
 
                 <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                    {activeTab === 'browser' && <MarketBrowser />}
                     {activeTab === 'journal' && <JournalTab apiBase="" />}
                     {activeTab === 'orders' && <OrdersTab apiBase="" />}
                 </div>

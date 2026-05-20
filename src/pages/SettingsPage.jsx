@@ -88,7 +88,7 @@ export default function SettingsPage() {
                         <h1 className="m-0 text-3xl font-extrabold text-foreground tracking-tight">Account Settings</h1>
                     </div>
                     <button 
-                        onClick={() => window.location.href = '/api/auth/link'}
+                        onClick={() => window.location.href = '/oauth2/authorization/eve'}
                         className="bg-transparent border border-success text-success px-4 py-2 rounded text-[13px] font-bold cursor-pointer hover:bg-success/5 transition-colors"
                     >+ Add Character</button>
                 </div>
