@@ -3,9 +3,9 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# 의존성 정의 파일 복사 및 설치
+# 의존성 정의 파일 복사 및 설치 (Vite 8 피어 의존성 충돌 해결을 위해 --legacy-peer-deps 추가)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # 소스 코드 복사 및 Vite 빌드 실행
 COPY . .
