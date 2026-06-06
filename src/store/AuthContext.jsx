@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -17,19 +18,14 @@ export const AuthProvider = ({ children }) => {
         lastCheckTimeRef.current = now;
 
         try {
-            const res = await fetch('/api/auth/me', { credentials: 'include' });
-            if (res.ok) {
-                const userData = await res.json();
-                if (userData.authenticated) {
-                    setUser(userData);
-                } else {
-                    setUser(null);
-                    if (window.location.pathname !== '/login') {
-                        window.location.href = '/login';
-                    }
-                }
+            const userData = await api.auth.me();
+            if (userData.authenticated) {
+                setUser(userData);
             } else {
                 setUser(null);
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login';
+                }
             }
         } catch (error) {
             console.error('[Auth] Check failed:', error);
@@ -49,7 +45,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = async () => {
         try {
-            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            await api.auth.logout();
             setUser(null);
             window.location.href = '/login';
         } catch {

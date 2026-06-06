@@ -1,5 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { api } from '../services/api';
 
 const ConfigContext = createContext();
 
@@ -9,43 +11,32 @@ export function ConfigProvider({ children }) {
     const [timezone, setTimezone] = useState('UTC');
     const [loading, setLoading] = useState(true);
 
-    const fetchSettings = async () => {
+    const fetchSettings = useCallback(async () => {
         if (!user) {
             setLoading(false);
             return;
         }
         try {
-            const res = await fetch('/api/characters/settings', { credentials: 'include' });
-            if (res.ok) {
-                const data = await res.json();
-                setIskAbbreviation(data.iskAbbreviation);
-                setTimezone(data.timezone || 'UTC');
-            }
+            const data = await api.characters.settings();
+            setIskAbbreviation(data.iskAbbreviation);
+            setTimezone(data.timezone || 'UTC');
         } catch (error) {
             console.error('Failed to fetch settings', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
     useEffect(() => {
         fetchSettings();
-    }, [user]);
+    }, [fetchSettings]);
 
     const updateSettings = async (newSettings) => {
         try {
-            const res = await fetch('/api/characters/settings', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newSettings),
-                credentials: 'include'
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setIskAbbreviation(data.iskAbbreviation);
-                setTimezone(data.timezone);
-                return true;
-            }
+            const data = await api.characters.updateSettings(newSettings);
+            setIskAbbreviation(data.iskAbbreviation);
+            setTimezone(data.timezone);
+            return true;
         } catch (error) {
             console.error('Failed to update settings', error);
         }
