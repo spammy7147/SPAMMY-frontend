@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatISK, formatDate } from '../../lib/utils'
-import { cn } from '@/lib/utils'
+import { formatISK, formatDate, cn } from '@/lib/utils'
 import { useConfig } from '../../store/ConfigContext'
 import { api } from '@/services/api'
 

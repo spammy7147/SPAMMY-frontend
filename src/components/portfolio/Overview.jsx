@@ -1,4 +1,4 @@
-import { formatISK } from '../../lib/utils'
+import { formatISK } from '@/lib/utils'
 import { useConfig } from '../../store/ConfigContext'
 
 export function Overview({ totalBalance }) {
