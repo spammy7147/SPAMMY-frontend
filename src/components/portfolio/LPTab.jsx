@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
 import { useConfig } from '../../store/ConfigContext'
+import { api } from '@/services/api'
 
-export function LPTab({ apiBase }) {
+export function LPTab() {
     const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterLps: [] })
     const [loading, setLoading] = useState(true)
@@ -10,11 +11,8 @@ export function LPTab({ apiBase }) {
     useEffect(() => {
         const fetchLP = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/lp`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.lp()
+                setData(result)
             } catch (error) {
                 console.error('LP fetch failed', error)
             } finally {
@@ -23,7 +21,7 @@ export function LPTab({ apiBase }) {
         }
 
         fetchLP()
-    }, [apiBase])
+    }, [])
 
     if (loading) return (
         <div className="text-center py-12 text-foreground-dim tracking-[2px]">

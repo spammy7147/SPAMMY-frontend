@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navbar } from '../components/layout/Navbar'
 import { Overview } from '../components/portfolio/Overview'
 import { CharacterCard } from '../components/portfolio/CharacterCard'
-
-const API_BASE = ''
+import { api } from '@/services/api'
 
 export default function PortfolioPage() {
     const [summary, setSummary] = useState(null)
@@ -11,11 +10,8 @@ export default function PortfolioPage() {
 
     const fetchSummary = async () => {
         try {
-            const res = await fetch(`${API_BASE}/api/characters/summary`, { credentials: 'include' })
-            if (res.ok) {
-                const data = await res.json()
-                setSummary(data)
-            }
+            const data = await api.characters.summary()
+            setSummary(data)
         } catch (error) {
             console.error('Summary fetch failed', error)
         } finally {
@@ -25,13 +21,8 @@ export default function PortfolioPage() {
 
     const handleUpdateOmega = async (charId, newDate) => {
         try {
-            const res = await fetch(`${API_BASE}/api/characters/${charId}/omega`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ omegaExpiresAt: newDate }),
-                credentials: 'include'
-            })
-            if (res.ok) fetchSummary()
+            await api.characters.updateOmega(charId, newDate)
+            fetchSummary()
         } catch (error) {
             console.error('Omega update failed', error)
         }

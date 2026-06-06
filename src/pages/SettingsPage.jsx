@@ -4,6 +4,7 @@ import { useAuth } from '../store/AuthContext'
 import { useConfig } from '../store/ConfigContext'
 import { Navbar } from '../components/layout/Navbar'
 import { cn } from '@/lib/utils'
+import { api } from '@/services/api'
 
 export default function SettingsPage() {
     const navigate = useNavigate()
@@ -15,11 +16,8 @@ export default function SettingsPage() {
 
     const fetchCharacters = async () => {
         try {
-            const res = await fetch('/api/auth/characters', { credentials: 'include' })
-            if (res.ok) {
-                const data = await res.json()
-                setCharacters(data)
-            }
+            const data = await api.auth.characters()
+            setCharacters(data)
         } catch (error) {
             console.error('Failed to fetch characters', error)
         } finally {
@@ -36,15 +34,10 @@ export default function SettingsPage() {
         if (!charId) return
         
         try {
-            const res = await fetch(`/api/auth/characters/${charId}/main`, { 
-                method: 'PATCH',
-                credentials: 'include'
-            })
-            if (res.ok) {
-                await fetchCharacters()
-                await checkAuth(true)
-                setConfirmModal({ show: false, charId: null, charName: '' })
-            }
+            await api.auth.setMain(charId)
+            await fetchCharacters()
+            await checkAuth(true)
+            setConfirmModal({ show: false, charId: null, charName: '' })
         } catch (error) {
             console.error('API Error:', error)
         }
@@ -54,13 +47,8 @@ export default function SettingsPage() {
         if (!confirm('이 캐릭터를 연결 해제하시겠습니까?')) return
         
         try {
-            const res = await fetch(`/api/auth/characters/${charId}`, { 
-                method: 'DELETE',
-                credentials: 'include'
-            })
-            if (res.ok) {
-                fetchCharacters()
-            }
+            await api.auth.unlink(charId)
+            fetchCharacters()
         } catch (error) {
             console.error('API Error:', error)
         }
@@ -101,7 +89,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex flex-col">
-                        {characters.map((char, index) => (
+                        {characters.map((char) => (
                             <div key={char.characterId} className={cn(
                                 "flex items-center justify-between p-5 px-6 border-b border-primary/10 last:border-b-0 transition-colors",
                                 char.main ? "bg-primary/5" : "bg-transparent"

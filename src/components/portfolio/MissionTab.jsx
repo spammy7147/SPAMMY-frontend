@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
 import { useConfig } from '../../store/ConfigContext'
+import { api } from '@/services/api'
 
-export function MissionTab({ apiBase }) {
+export function MissionTab() {
     const { iskAbbreviation } = useConfig()
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -10,11 +11,8 @@ export function MissionTab({ apiBase }) {
     useEffect(() => {
         const fetchMissions = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/missions`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.missions()
+                setData(result)
             } catch (error) {
                 console.error('Missions fetch failed', error)
             } finally {
@@ -23,7 +21,7 @@ export function MissionTab({ apiBase }) {
         }
 
         fetchMissions()
-    }, [apiBase])
+    }, [])
 
     if (loading) return (
         <div className="text-center py-12 text-foreground-dim tracking-[2px]">

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { formatISK, formatDate } from '../../lib/utils'
 import { useConfig } from '../../store/ConfigContext'
 import { cn } from '@/lib/utils'
+import { api } from '@/services/api'
 
-export function OrdersTab({ apiBase }) {
+export function OrdersTab() {
     const { iskAbbreviation, timezone } = useConfig();
     const [data, setData] = useState({ entries: [] })
     const [loading, setLoading] = useState(true)
@@ -14,11 +15,8 @@ export function OrdersTab({ apiBase }) {
     useEffect(() => {
         const fetchOrders = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/orders`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.orders()
+                setData(result)
             } catch (error) {
                 console.error('Orders fetch failed', error)
             } finally {
@@ -27,7 +25,7 @@ export function OrdersTab({ apiBase }) {
         }
 
         fetchOrders()
-    }, [apiBase])
+    }, [])
 
     const filteredEntries = (data.entries || []).filter(entry => {
         const matchChar = selectedChar === 'ALL CHARACTERS' || entry.charName === selectedChar;

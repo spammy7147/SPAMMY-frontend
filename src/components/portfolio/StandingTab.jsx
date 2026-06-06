@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react'
+import { api } from '@/services/api'
 
-export function StandingTab({ apiBase }) {
+export function StandingTab() {
     const [data, setData] = useState({ standings: [] })
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const fetchStandings = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/standings`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.standings()
+                setData(result)
             } catch (error) {
                 console.error('Standings fetch failed', error)
             } finally {
@@ -20,7 +18,7 @@ export function StandingTab({ apiBase }) {
         }
 
         fetchStandings()
-    }, [apiBase])
+    }, [])
 
     const getBarColorClass = (val) => {
         if (val >= 5) return 'bg-success';

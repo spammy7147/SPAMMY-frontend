@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { formatISK, formatDate } from '../../lib/utils'
 import { cn } from '@/lib/utils'
 import { useConfig } from '../../store/ConfigContext'
+import { api } from '@/services/api'
 
-export function JournalTab({ apiBase }) {
+export function JournalTab() {
     const { iskAbbreviation, timezone } = useConfig()
     const [data, setData] = useState({ entries: [], typeSummary: {} })
     const [loading, setLoading] = useState(true)
@@ -15,11 +16,8 @@ export function JournalTab({ apiBase }) {
     useEffect(() => {
         const fetchJournal = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/journal`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.journal()
+                setData(result)
             } catch (error) {
                 console.error('Journal fetch failed', error)
             } finally {
@@ -28,7 +26,7 @@ export function JournalTab({ apiBase }) {
         }
 
         fetchJournal()
-    }, [apiBase])
+    }, [])
 
     const filteredEntries = data.entries.filter(entry => {
         const matchChar = selectedChar === 'ALL CHARACTERS' || entry.charName === selectedChar;

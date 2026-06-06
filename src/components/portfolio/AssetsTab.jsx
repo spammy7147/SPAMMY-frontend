@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '../../lib/utils'
-import { cn } from '@/lib/utils'
 import { useConfig } from '../../store/ConfigContext'
+import { api } from '@/services/api'
 
-export function AssetsTab({ apiBase }) {
+export function AssetsTab() {
     const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterAssets: [] })
     const [loading, setLoading] = useState(true)
@@ -13,11 +13,8 @@ export function AssetsTab({ apiBase }) {
     useEffect(() => {
         const fetchAssets = async () => {
             try {
-                const res = await fetch(`${apiBase}/api/characters/assets`, { credentials: 'include' })
-                if (res.ok) {
-                    const result = await res.json()
-                    setData(result)
-                }
+                const result = await api.characters.assets()
+                setData(result)
             } catch (error) {
                 console.error('Assets fetch failed', error)
             } finally {
@@ -26,7 +23,7 @@ export function AssetsTab({ apiBase }) {
         }
 
         fetchAssets()
-    }, [apiBase])
+    }, [])
 
     const toggleLoc = (id) => {
         setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
