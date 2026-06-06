@@ -1,5 +1,5 @@
 import { formatISK } from '@/lib/utils'
-import { useConfig } from '../../store/ConfigContext'
+import { useConfig } from '@/store/ConfigContext'
 
 export function Overview({ totalBalance }) {
     const { iskAbbreviation } = useConfig();

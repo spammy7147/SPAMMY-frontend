@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatISK, formatDate, cn } from '@/lib/utils'
-import { useConfig } from '../../store/ConfigContext'
+import { useConfig } from '@/store/ConfigContext'
 
 export function CharacterCard({ char, onUpdateOmega }) {
     const { iskAbbreviation, timezone } = useConfig();

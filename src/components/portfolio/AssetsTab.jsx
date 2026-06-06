@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatISK } from '@/lib/utils'
-import { useConfig } from '../../store/ConfigContext'
+import { useConfig } from '@/store/ConfigContext'
 import { api } from '@/services/api'
 
 export function AssetsTab() {
