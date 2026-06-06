@@ -5,6 +5,7 @@ import AssetsPage from './pages/AssetsPage'
 import MissionsPage from './pages/MissionsPage'
 import MarketPage from './pages/MarketPage'
 import SettingsPage from './pages/SettingsPage'
+import AppLayout from './components/layout/AppLayout'
 import { AuthProvider, useAuth } from './store/AuthContext'
 import { ThemeProvider } from './store/ThemeContext'
 import { ConfigProvider } from './store/ConfigContext'
@@ -31,11 +32,16 @@ function App() {
                     <ConfigProvider>
                         <Routes>
                             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-                            <Route path="/" element={<ProtectedRoute><PortfolioPage /></ProtectedRoute>} />
-                            <Route path="/assets" element={<ProtectedRoute><AssetsPage /></ProtectedRoute>} />
-                            <Route path="/missions" element={<ProtectedRoute><MissionsPage /></ProtectedRoute>} />
-                            <Route path="/market" element={<ProtectedRoute><MarketPage /></ProtectedRoute>} />
-                            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                            
+                            {/* 공통 레이아웃이 적용되는 인증 보호 라우트들 */}
+                            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                                <Route path="/" element={<PortfolioPage />} />
+                                <Route path="/assets" element={<AssetsPage />} />
+                                <Route path="/missions" element={<MissionsPage />} />
+                                <Route path="/market" element={<MarketPage />} />
+                                <Route path="/settings" element={<SettingsPage />} />
+                            </Route>
+                            
                             <Route path="*" element={<Navigate to="/" replace />} />
                         </Routes>
                     </ConfigProvider>

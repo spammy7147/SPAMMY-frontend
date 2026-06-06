@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Navbar } from '../components/layout/Navbar'
 import { MissionTab } from '../components/portfolio/MissionTab'
 import { StandingTab } from '../components/portfolio/StandingTab'
 import { LPTab } from '../components/portfolio/LPTab'
@@ -15,32 +14,29 @@ export default function MissionsPage() {
     ]
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
-            <Navbar />
-            <main className="max-w-[1440px] mx-auto p-8">
-                <div className="flex gap-6 mb-8 border-b border-border">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={cn(
-                                "bg-none border-none border-b-2 py-3 px-1 text-sm font-bold cursor-pointer transition-all",
-                                activeTab === tab.id 
-                                    ? "border-secondary text-secondary" 
-                                    : "border-transparent text-foreground-dim hover:text-foreground-muted"
-                            )}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
+        <>
+            <div className="flex gap-6 mb-8 border-b border-border">
+                {tabs.map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={cn(
+                            "bg-none border-none border-b-2 py-3 px-1 text-sm font-bold cursor-pointer transition-all",
+                            activeTab === tab.id 
+                                ? "border-secondary text-secondary" 
+                                : "border-transparent text-foreground-dim hover:text-foreground-muted"
+                        )}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
 
-                <div className="animate-in fade-in slide-in-from-top-1 duration-300">
-                    {activeTab === 'missions' && <MissionTab apiBase="" />}
-                    {activeTab === 'standings' && <StandingTab apiBase="" />}
-                    {activeTab === 'lp' && <LPTab apiBase="" />}
-                </div>
-            </main>
-        </div>
+            <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+                {activeTab === 'missions' && <MissionTab apiBase="" />}
+                {activeTab === 'standings' && <StandingTab apiBase="" />}
+                {activeTab === 'lp' && <LPTab apiBase="" />}
+            </div>
+        </>
     )
 }

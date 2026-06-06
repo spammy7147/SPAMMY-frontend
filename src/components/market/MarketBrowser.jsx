@@ -27,7 +27,7 @@ const mockOrders = {
 
 export function MarketBrowser() {
     const [expandedCats, setExpandedCats] = useState(['1'])
-    const [selectedItem, setSelectedItem] = useState({
+    const [selectedItem] = useState({
         name: 'Antimatter Charge S',
         category: 'Ammunition & Charges > Hybrid Charges',
         description: 'A small hybrid charge. High damage, short range.',
