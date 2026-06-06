@@ -10,7 +10,8 @@ const fetchApi = async (url, options = {}) => {
     if (!res.ok) {
         throw new Error(`API Error: ${res.status} ${res.statusText}`);
     }
-    return res.json();
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
 };
 
 export const api = {
