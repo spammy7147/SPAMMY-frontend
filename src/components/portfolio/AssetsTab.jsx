@@ -15,7 +15,7 @@ const highlightText = (text, highlight) => {
     return (
         <>
             {parts.map((part, i) => 
-                regex.test(part) 
+                part.toLowerCase() === highlight.toLowerCase()
                     ? <mark key={i} className="text-gold bg-gold/10 px-0.5 rounded font-bold">{part}</mark> 
                     : part
             )}
