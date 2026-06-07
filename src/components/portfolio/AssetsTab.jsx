@@ -30,8 +30,8 @@ export function AssetsTab() {
         fetchAssets()
     }, [])
 
-    const toggleLoc = (id) => {
-        setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
+    const toggleLoc = (id, currentExpanded) => {
+        setExpandedLocs(prev => ({ ...prev, [id]: !currentExpanded }));
     };
 
     if (loading) return (
@@ -65,7 +65,6 @@ export function AssetsTab() {
                         <div className="flex flex-col gap-2">
                             {charGroup.locations.map((loc) => {
                                 const locId = `${charGroup.characterName}-${loc.locationName}`;
-                                const isExpanded = searchTerm ? true : expandedLocs[locId];
                                 
                                 // 간단한 검색 필터링 (아이템 이름 또는 컨테이너 이름)
                                 const filteredItems = loc.items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -74,12 +73,17 @@ export function AssetsTab() {
                                     c.contents.some(ci => ci.name.toLowerCase().includes(searchTerm.toLowerCase()))
                                 );
 
+                                const hasLocSearchMatches = searchTerm && (filteredItems.length > 0 || filteredContainers.length > 0);
+                                const isExpanded = expandedLocs[locId] !== undefined
+                                    ? expandedLocs[locId]
+                                    : !!hasLocSearchMatches;
+
                                 if (searchTerm && filteredItems.length === 0 && filteredContainers.length === 0) return null;
 
                                 return (
                                     <div key={locId} className="bg-card border border-border rounded overflow-hidden">
                                         <div 
-                                        onClick={() => toggleLoc(locId)} 
+                                        onClick={() => toggleLoc(locId, isExpanded)} 
                                         className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors"
                                         >
                                         <div className="flex items-center gap-2.5">
