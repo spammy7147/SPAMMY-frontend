@@ -11,8 +11,8 @@ export function AssetsTab() {
     const [searchTerm, setSearchTerm] = useState('')
     const [expandedContainers, setExpandedContainers] = useState({})
 
-    const toggleContainer = (id) => {
-        setExpandedContainers(prev => ({ ...prev, [id]: !prev[id] }));
+    const toggleContainer = (id, currentExpanded) => {
+        setExpandedContainers(prev => ({ ...prev, [id]: !currentExpanded }));
     };
 
     useEffect(() => {
@@ -29,28 +29,6 @@ export function AssetsTab() {
 
         fetchAssets()
     }, [])
-
-    useEffect(() => {
-        if (searchTerm) {
-            setExpandedContainers(prev => {
-                const newExpanded = { ...prev };
-                data.characterAssets.forEach(charGroup => {
-                    charGroup.locations.forEach(loc => {
-                        loc.containers.forEach(cont => {
-                            const matches = cont.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                            cont.contents.some(ci => ci.name.toLowerCase().includes(searchTerm.toLowerCase()));
-                            if (matches) {
-                                newExpanded[cont.id] = true;
-                            }
-                        });
-                    });
-                });
-                return newExpanded;
-            });
-        } else {
-            setExpandedContainers({});
-        }
-    }, [searchTerm, data]);
 
     const toggleLoc = (id) => {
         setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
@@ -122,12 +100,19 @@ export function AssetsTab() {
                                                 </div>
                                             ))}
                                             {filteredContainers.map(cont => {
-                                                const isContExpanded = expandedContainers[cont.id];
+                                                const matchesSearch = searchTerm && (
+                                                    cont.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                                    cont.contents.some(ci => ci.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                );
+
+                                                const isContExpanded = expandedContainers[cont.id] !== undefined
+                                                    ? expandedContainers[cont.id]
+                                                    : !!matchesSearch;
                                                 
                                                 return (
                                                     <div key={cont.id} className="border-b border-border last:border-none">
                                                         <div 
-                                                            onClick={() => toggleContainer(cont.id)} 
+                                                            onClick={() => toggleContainer(cont.id, isContExpanded)} 
                                                             className="flex px-10 py-2.5 text-xs bg-muted/30 text-foreground border-b border-border cursor-pointer hover:bg-border/10 transition-colors justify-between items-center"
                                                         >
                                                             <div className="flex items-center gap-2">
