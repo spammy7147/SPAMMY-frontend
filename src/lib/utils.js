@@ -9,10 +9,14 @@ export function formatISK(amount, abbreviate = true) {
     if (!amount) return '0.00'
     
     if (abbreviate) {
-        if (amount >= 1_000_000_000) return (amount / 1_000_000_000).toFixed(2) + ' B'
-        if (amount >= 1_000_000) return (amount / 1_000_000).toFixed(2) + ' M'
-        if (amount >= 1_000) return (amount / 1_000).toFixed(2) + ' K'
-        return amount.toFixed(2)
+        const isNegative = amount < 0;
+        const absAmount = Math.abs(amount);
+        const sign = isNegative ? '-' : '';
+        
+        if (absAmount >= 1_000_000_000) return sign + (absAmount / 1_000_000_000).toFixed(2) + ' B';
+        if (absAmount >= 1_000_000) return sign + (absAmount / 1_000_000).toFixed(2) + ' M';
+        if (absAmount >= 1_000) return sign + (absAmount / 1_000).toFixed(2) + ' K';
+        return sign + absAmount.toFixed(2);
     } else {
         return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
