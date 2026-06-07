@@ -9,6 +9,11 @@ export function AssetsTab() {
     const [loading, setLoading] = useState(true)
     const [expandedLocs, setExpandedLocs] = useState({})
     const [searchTerm, setSearchTerm] = useState('')
+    const [expandedContainers, setExpandedContainers] = useState({})
+
+    const toggleContainer = (id) => {
+        setExpandedContainers(prev => ({ ...prev, [id]: !prev[id] }));
+    };
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -94,24 +99,35 @@ export function AssetsTab() {
                                                     <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
                                                 </div>
                                             ))}
-                                            {filteredContainers.map((cont, cIdx) => (
-                                                <div key={cIdx}>
-                                                    <div className="flex px-10 py-2 text-xs bg-muted text-foreground border-b border-border">
-                                                        <span className="flex-1 font-extrabold">📦 {cont.name}</span>
-                                                        <span className="w-[120px] text-right font-bold">
-                                                            {formatISK(cont.totalValue, iskAbbreviation)}
-                                                        </span>
-                                                    </div>
-                                                    {cont.contents.map(si => (
-                                                        <div key={si.id} className="flex px-[60px] py-2 text-[11px] text-foreground-muted border-b border-border hover:bg-border/5">
-                                                            <span className="flex-1 font-medium">└ {si.name}</span>
-                                                            <span className="w-[60px] text-right">{si.qty}</span>
-                                                            <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(si.value, iskAbbreviation)}</span>
+                                            {filteredContainers.map((cont, cIdx) => {
+                                                const isContExpanded = searchTerm ? true : expandedContainers[cont.id];
+                                                
+                                                return (
+                                                    <div key={cIdx} className="border-b border-border last:border-none">
+                                                        <div 
+                                                            onClick={() => toggleContainer(cont.id)} 
+                                                            className="flex px-10 py-2.5 text-xs bg-muted/30 text-foreground border-b border-border cursor-pointer hover:bg-border/10 transition-colors justify-between items-center"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[9px] text-foreground-dim w-3">
+                                                                    {isContExpanded ? '▼' : '▶'}
+                                                                </span>
+                                                                <span className="font-extrabold">📦 {cont.name}</span>
+                                                            </div>
+                                                            <span className="w-[120px] text-right font-bold text-foreground/80">
+                                                                {formatISK(cont.totalValue, iskAbbreviation)}
+                                                            </span>
                                                         </div>
-                                                    ))}
-
+                                                        {isContExpanded && cont.contents.map(si => (
+                                                            <div key={si.id} className="flex px-[60px] py-2 text-[11px] text-foreground-muted border-b border-border last:border-none hover:bg-border/5">
+                                                                <span className="flex-1 font-medium">└ {si.name}</span>
+                                                                <span className="w-[60px] text-right">{si.qty}</span>
+                                                                <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(si.value, iskAbbreviation)}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
+                                                );
+                                            })}
                                             </div>
                                         )}
                                     </div>
