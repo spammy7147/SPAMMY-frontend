@@ -63,7 +63,7 @@ export function AssetsTab() {
                             <div className="flex-1 h-[1px] bg-border"></div>
                         </div>
                         <div className="flex flex-col gap-2">
-                            {charGroup.locations.map((loc, idx) => {
+                            {charGroup.locations.map((loc) => {
                                 const locId = `${charGroup.characterName}-${loc.locationName}`;
                                 const isExpanded = searchTerm ? true : expandedLocs[locId];
                                 
@@ -77,7 +77,7 @@ export function AssetsTab() {
                                 if (searchTerm && filteredItems.length === 0 && filteredContainers.length === 0) return null;
 
                                 return (
-                                    <div key={idx} className="bg-card border border-border rounded overflow-hidden">
+                                    <div key={locId} className="bg-card border border-border rounded overflow-hidden">
                                         <div 
                                         onClick={() => toggleLoc(locId)} 
                                         className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors"
@@ -99,11 +99,11 @@ export function AssetsTab() {
                                                     <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
                                                 </div>
                                             ))}
-                                            {filteredContainers.map((cont, cIdx) => {
+                                            {filteredContainers.map(cont => {
                                                 const isContExpanded = searchTerm ? true : expandedContainers[cont.id];
                                                 
                                                 return (
-                                                    <div key={cIdx} className="border-b border-border last:border-none">
+                                                    <div key={cont.id} className="border-b border-border last:border-none">
                                                         <div 
                                                             onClick={() => toggleContainer(cont.id)} 
                                                             className="flex px-10 py-2.5 text-xs bg-muted/30 text-foreground border-b border-border cursor-pointer hover:bg-border/10 transition-colors justify-between items-center"
