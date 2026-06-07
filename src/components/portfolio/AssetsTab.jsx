@@ -3,6 +3,26 @@ import { formatISK } from '@/lib/utils'
 import { useConfig } from '@/store/ConfigContext'
 import { api } from '@/services/api'
 
+// 검색어 매칭 텍스트에 하이라이트 효과를 주기 위한 헬퍼 함수
+const highlightText = (text, highlight) => {
+    if (!highlight || !highlight.trim()) {
+        return text;
+    }
+    // 정규식 특수문자 이스케이프 처리
+    const escapedHighlight = highlight.replace(/[-\\^$*+?.()|[\]{}]/g, '\\$&');
+    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
+    const parts = text.split(regex);
+    return (
+        <>
+            {parts.map((part, i) => 
+                regex.test(part) 
+                    ? <mark key={i} className="text-gold bg-gold/10 px-0.5 rounded font-bold">{part}</mark> 
+                    : part
+            )}
+        </>
+    );
+};
+
 export function AssetsTab() {
     const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterAssets: [] })
@@ -98,7 +118,7 @@ export function AssetsTab() {
                                         <div className="bg-card animate-in fade-in duration-200">
                                             {filteredItems.map(item => (
                                                 <div key={item.id} className="flex px-10 py-2.5 text-xs border-b border-border hover:bg-border/5">
-                                                    <span className="flex-1 text-foreground font-medium">{item.name}</span>
+                                                    <span className="flex-1 text-foreground font-medium">{highlightText(item.name, searchTerm)}</span>
                                                     <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
                                                     <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
                                                 </div>
@@ -123,7 +143,7 @@ export function AssetsTab() {
                                                                 <span className="text-[9px] text-foreground-dim w-3">
                                                                     {isContExpanded ? '▼' : '▶'}
                                                                 </span>
-                                                                <span className="font-extrabold">📦 {cont.name}</span>
+                                                                <span className="font-extrabold">📦 {highlightText(cont.name, searchTerm)}</span>
                                                             </div>
                                                             <span className="w-[120px] text-right font-bold text-foreground/80">
                                                                 {formatISK(cont.totalValue, iskAbbreviation)}
@@ -131,7 +151,7 @@ export function AssetsTab() {
                                                         </div>
                                                         {isContExpanded && cont.contents.map(si => (
                                                             <div key={si.id} className="flex px-[60px] py-2 text-[11px] text-foreground-muted border-b border-border last:border-none hover:bg-border/5">
-                                                                <span className="flex-1 font-medium">└ {si.name}</span>
+                                                                <span className="flex-1 font-medium">└ {highlightText(si.name, searchTerm)}</span>
                                                                 <span className="w-[60px] text-right">{si.qty}</span>
                                                                 <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(si.value, iskAbbreviation)}</span>
                                                             </div>
