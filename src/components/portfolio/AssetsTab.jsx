@@ -30,6 +30,28 @@ export function AssetsTab() {
         fetchAssets()
     }, [])
 
+    useEffect(() => {
+        if (searchTerm) {
+            setExpandedContainers(prev => {
+                const newExpanded = { ...prev };
+                data.characterAssets.forEach(charGroup => {
+                    charGroup.locations.forEach(loc => {
+                        loc.containers.forEach(cont => {
+                            const matches = cont.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                            cont.contents.some(ci => ci.name.toLowerCase().includes(searchTerm.toLowerCase()));
+                            if (matches) {
+                                newExpanded[cont.id] = true;
+                            }
+                        });
+                    });
+                });
+                return newExpanded;
+            });
+        } else {
+            setExpandedContainers({});
+        }
+    }, [searchTerm, data]);
+
     const toggleLoc = (id) => {
         setExpandedLocs(prev => ({ ...prev, [id]: !prev[id] }));
     };
@@ -100,7 +122,7 @@ export function AssetsTab() {
                                                 </div>
                                             ))}
                                             {filteredContainers.map(cont => {
-                                                const isContExpanded = searchTerm ? true : expandedContainers[cont.id];
+                                                const isContExpanded = expandedContainers[cont.id];
                                                 
                                                 return (
                                                     <div key={cont.id} className="border-b border-border last:border-none">
