@@ -36,7 +36,7 @@ function App() {
                             {/* 공통 레이아웃이 적용되는 인증 보호 라우트들 */}
                             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                                 <Route path="/" element={<PortfolioPage />} />
-                                <Route path="/assets" element={<AssetsPage />} />
+                                <Route path="/inventory" element={<AssetsPage />} />
                                 <Route path="/missions" element={<MissionsPage />} />
                                 <Route path="/market" element={<MarketPage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
