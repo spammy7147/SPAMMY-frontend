@@ -12,6 +12,7 @@ export function AssetsTab() {
     const [expandedLocs, setExpandedLocs] = useState({})
     const [expandedCats, setExpandedCats] = useState({})
     const [expandedItems, setExpandedItems] = useState({})
+    const [expandedInnerCats, setExpandedInnerCats] = useState({}) // 내부 카테고리 상태 추가
     const [searchTerm, setSearchTerm] = useState('')
 
     useEffect(() => {
@@ -38,6 +39,11 @@ export function AssetsTab() {
 
     const toggleItem = (id) => {
         setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    // 내부 카테고리 토글 함수
+    const toggleInnerCat = (id) => {
+        setExpandedInnerCats(prev => ({ ...prev, [id]: prev[id] === false ? true : false }));
     };
 
     if (loading) return (
@@ -182,21 +188,29 @@ export function AssetsTab() {
                                                             {showChevron && isItemExpanded && (
                                                                 <div className="bg-muted/10 border-t border-b border-border/20 py-1 animate-in fade-in duration-200">
                                                                     {item.contents && item.contents.length > 0 ? (
-                                                                        item.contents.map(innerCat => (
-                                                                            <div key={innerCat.categoryId} className="mb-2 last:mb-0">
-                                                                                {/* 내부 카테고리 구분선/헤더 */}
-                                                                                <div className="px-[50px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px]">
-                                                                                    {innerCat.categoryName} ({innerCat.items.length})
-                                                                                </div>
-                                                                                {innerCat.items.map(subItem => (
-                                                                                    <div key={subItem.id} className="flex px-[60px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
-                                                                                        <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
-                                                                                        <span className="w-[60px] text-right">{subItem.qty}</span>
-                                                                                        <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                        item.contents.map(innerCat => {
+                                                                            const innerCatId = `${item.id}-${innerCat.categoryId}`;
+                                                                            const isInnerCatExpanded = searchTerm ? true : expandedInnerCats[innerCatId] !== false;
+                                                                            return (
+                                                                                <div key={innerCat.categoryId} className="mb-2 last:mb-0">
+                                                                                    {/* 내부 카테고리 구분선/헤더 */}
+                                                                                    <div 
+                                                                                        onClick={() => toggleInnerCat(innerCatId)}
+                                                                                        className="px-[45px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px] cursor-pointer flex items-center gap-1 select-none hover:text-primary transition-colors"
+                                                                                    >
+                                                                                        <ChevronIcon isExpanded={isInnerCatExpanded} className="w-2.5 h-2.5" />
+                                                                                        <span>{innerCat.categoryName} ({innerCat.items.length})</span>
                                                                                     </div>
-                                                                                ))}
-                                                                            </div>
-                                                                        ))
+                                                                                    {isInnerCatExpanded && innerCat.items.map(subItem => (
+                                                                                        <div key={subItem.id} className="flex px-[60px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
+                                                                                            <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                            <span className="w-[60px] text-right">{subItem.qty}</span>
+                                                                                            <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            );
+                                                                        })
                                                                     ) : (
                                                                         <div className="px-[50px] py-2 text-[11px] text-foreground-dim/40 italic">
                                                                             └ (내용물 없음)
@@ -262,20 +276,29 @@ export function AssetsTab() {
                                                                                 {showChevron && isItemExpanded && (
                                                                                     <div className="bg-muted/10 border-t border-b border-border/20 py-1 animate-in fade-in duration-200">
                                                                                         {item.contents && item.contents.length > 0 ? (
-                                                                                            item.contents.map(innerCat => (
-                                                                                                <div key={innerCat.categoryId} className="mb-2 last:mb-0">
-                                                                                                    <div className="px-[65px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px]">
-                                                                                                        {innerCat.categoryName} ({innerCat.items.length})
-                                                                                                    </div>
-                                                                                                    {innerCat.items.map(subItem => (
-                                                                                                        <div key={subItem.id} className="flex px-[75px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
-                                                                                                            <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
-                                                                                                            <span className="w-[60px] text-right">{subItem.qty}</span>
-                                                                                                            <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                            item.contents.map(innerCat => {
+                                                                                                const innerCatId = `${item.id}-${innerCat.categoryId}`;
+                                                                                                const isInnerCatExpanded = searchTerm ? true : expandedInnerCats[innerCatId] !== false;
+                                                                                                return (
+                                                                                                    <div key={innerCat.categoryId} className="mb-2 last:mb-0">
+                                                                                                        {/* 내부 카테고리 구분선/헤더 */}
+                                                                                                        <div 
+                                                                                                            onClick={() => toggleInnerCat(innerCatId)}
+                                                                                                            className="px-[60px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px] cursor-pointer flex items-center gap-1 select-none hover:text-primary transition-colors"
+                                                                                                        >
+                                                                                                            <ChevronIcon isExpanded={isInnerCatExpanded} className="w-2.5 h-2.5" />
+                                                                                                            <span>{innerCat.categoryName} ({innerCat.items.length})</span>
                                                                                                         </div>
-                                                                                                    ))}
-                                                                                                </div>
-                                                                                            ))
+                                                                                                        {isInnerCatExpanded && innerCat.items.map(subItem => (
+                                                                                                            <div key={subItem.id} className="flex px-[75px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
+                                                                                                                <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                                                <span className="w-[60px] text-right">{subItem.qty}</span>
+                                                                                                                <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                                            </div>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })
                                                                                         ) : (
                                                                                             <div className="px-[65px] py-2 text-[11px] text-foreground-dim/40 italic">
                                                                                                 └ (내용물 없음)
