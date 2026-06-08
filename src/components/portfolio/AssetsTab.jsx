@@ -213,7 +213,7 @@ export function AssetsTab() {
                                                                         })
                                                                     ) : (
                                                                         <div className="px-[50px] py-2 text-[11px] text-foreground-dim/40 italic">
-                                                                            └ (내용물 없음)
+                                                                            └ (Empty)
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -301,7 +301,7 @@ export function AssetsTab() {
                                                                                             })
                                                                                         ) : (
                                                                                             <div className="px-[65px] py-2 text-[11px] text-foreground-dim/40 italic">
-                                                                                                └ (내용물 없음)
+                                                                                                └ (Empty)
                                                                                             </div>
                                                                                         )}
                                                                                     </div>
