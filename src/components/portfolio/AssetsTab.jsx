@@ -86,20 +86,23 @@ export function AssetsTab() {
                                 const locId = `${charGroup.characterName}-${loc.locationName}`;
                                 const isLocExpanded = searchTerm ? true : !!expandedLocs[locId];
                                 
-                                // 검색 필터링 구현
+                                // 검색 필터링 구현 (카테고리 그룹 내 아이템 탐색)
                                 const filteredCategoryGroups = loc.categoryGroups ? loc.categoryGroups.map(catGroup => {
                                     const filteredItems = catGroup.items.filter(item => {
                                         const itemMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-                                        const contentsMatch = item.isContainer && item.contents && item.contents.some(subItem => 
-                                            subItem.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                        const contentsMatch = item.isContainer && item.contents && item.contents.some(innerCat => 
+                                            innerCat.items.some(subItem => subItem.name.toLowerCase().includes(searchTerm.toLowerCase()))
                                         );
                                         return itemMatches || contentsMatch;
                                     }).map(item => {
                                         if (item.isContainer && item.contents) {
                                             const itemMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-                                            const filteredContents = item.contents.filter(subItem => 
-                                                itemMatches || subItem.name.toLowerCase().includes(searchTerm.toLowerCase())
-                                            );
+                                            const filteredContents = item.contents.map(innerCat => {
+                                                const filteredSubItems = innerCat.items.filter(subItem => 
+                                                    itemMatches || subItem.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                                );
+                                                return { ...innerCat, items: filteredSubItems };
+                                            }).filter(innerCat => innerCat.items.length > 0);
                                             return { ...item, contents: filteredContents };
                                         }
                                         return item;
@@ -108,7 +111,28 @@ export function AssetsTab() {
                                     return { ...catGroup, items: filteredItems };
                                 }).filter(catGroup => catGroup.items.length > 0) : [];
 
-                                if (searchTerm && filteredCategoryGroups.length === 0) return null;
+                                // 검색 필터링 구현 (컨테이너 리스트 탐색)
+                                const filteredContainers = loc.containers ? loc.containers.filter(item => {
+                                    const itemMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+                                    const contentsMatch = item.isContainer && item.contents && item.contents.some(innerCat => 
+                                        innerCat.items.some(subItem => subItem.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                    );
+                                    return itemMatches || contentsMatch;
+                                }).map(item => {
+                                    if (item.isContainer && item.contents) {
+                                        const itemMatches = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+                                        const filteredContents = item.contents.map(innerCat => {
+                                            const filteredSubItems = innerCat.items.filter(subItem => 
+                                                itemMatches || subItem.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                            );
+                                            return { ...innerCat, items: filteredSubItems };
+                                        }).filter(innerCat => innerCat.items.length > 0);
+                                        return { ...item, contents: filteredContents };
+                                    }
+                                    return item;
+                                }) : [];
+
+                                if (searchTerm && filteredCategoryGroups.length === 0 && filteredContainers.length === 0) return null;
 
                                 return (
                                     <div key={idx} className="bg-card border border-border rounded overflow-hidden">
@@ -126,6 +150,65 @@ export function AssetsTab() {
 
                                         {isLocExpanded && (
                                             <div className="bg-card border-t border-border/50 animate-in fade-in duration-200">
+                                                
+                                                {/* 독립 노출 컨테이너 렌더링 */}
+                                                {filteredContainers.map(item => {
+                                                    const isItemExpanded = searchTerm ? true : !!expandedItems[item.id];
+                                                    const showChevron = item.isContainer;
+                                                    const itemIcon = '📦';
+
+                                                    return (
+                                                        <div key={item.id} className="border-b border-border/40 last:border-none">
+                                                            <div 
+                                                                onClick={() => showChevron && toggleItem(item.id)}
+                                                                className={`flex items-center px-[30px] py-2.5 text-xs bg-muted/20 hover:bg-border/5 transition-colors ${showChevron ? 'cursor-pointer' : ''}`}
+                                                            >
+                                                                <div className="flex-1 flex items-center gap-2">
+                                                                    {showChevron ? (
+                                                                        <ChevronIcon isExpanded={isItemExpanded} className="text-foreground-dim/40 w-2.5 h-2.5" />
+                                                                    ) : (
+                                                                        <span className="w-2.5 h-2.5" />
+                                                                    )}
+                                                                    <span className="text-sm select-none">{itemIcon}</span>
+                                                                    <span className="font-bold text-foreground">
+                                                                        {item.name}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
+                                                                <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
+                                                            </div>
+
+                                                            {/* 컨테이너 내부 적재물 (카테고리별 분할 표시) */}
+                                                            {showChevron && isItemExpanded && (
+                                                                <div className="bg-muted/10 border-t border-b border-border/20 py-1 animate-in fade-in duration-200">
+                                                                    {item.contents && item.contents.length > 0 ? (
+                                                                        item.contents.map(innerCat => (
+                                                                            <div key={innerCat.categoryId} className="mb-2 last:mb-0">
+                                                                                {/* 내부 카테고리 구분선/헤더 */}
+                                                                                <div className="px-[50px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px]">
+                                                                                    {innerCat.categoryName} ({innerCat.items.length})
+                                                                                </div>
+                                                                                {innerCat.items.map(subItem => (
+                                                                                    <div key={subItem.id} className="flex px-[60px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
+                                                                                        <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                        <span className="w-[60px] text-right">{subItem.qty}</span>
+                                                                                        <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="px-[50px] py-2 text-[11px] text-foreground-dim/40 italic">
+                                                                            └ (내용물 없음)
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })}
+
+                                                {/* 일반 카테고리 그룹 렌더링 (함선 카테고리 포함) */}
                                                 {filteredCategoryGroups.map(catGroup => {
                                                     const catId = `${locId}-${catGroup.categoryId}`;
                                                     const isCatExpanded = searchTerm ? true : !!expandedCats[catId];
@@ -133,7 +216,6 @@ export function AssetsTab() {
 
                                                     return (
                                                         <div key={catGroup.categoryId} className="border-b border-border/40 last:border-none">
-                                                            {/* 2단계: 카테고리(Category) 아코디언 헤더 */}
                                                             <div 
                                                                 onClick={() => toggleCat(catId)}
                                                                 className="px-[30px] py-2 bg-muted/40 cursor-pointer flex justify-between items-center hover:bg-border/5 transition-colors"
@@ -153,11 +235,10 @@ export function AssetsTab() {
                                                                     {catGroup.items.map(item => {
                                                                         const isItemExpanded = searchTerm ? true : !!expandedItems[item.id];
                                                                         const showChevron = item.isContainer;
-                                                                        const itemIcon = item.assetType === 'SHIP' ? '🛸' : item.assetType === 'CONTAINER' ? '📦' : null;
+                                                                        const itemIcon = item.assetType === 'SHIP' ? '🛸' : null;
 
                                                                         return (
                                                                             <div key={item.id} className="border-b border-border/30 last:border-none">
-                                                                                {/* 3단계: 자산 아이템(AssetItem) 아코디언 헤더 / 아이템 로우 */}
                                                                                 <div 
                                                                                     onClick={() => showChevron && toggleItem(item.id)}
                                                                                     className={`flex items-center px-[45px] py-2.5 text-xs hover:bg-border/5 transition-colors ${showChevron ? 'cursor-pointer' : ''}`}
@@ -177,19 +258,26 @@ export function AssetsTab() {
                                                                                     <span className="w-[120px] text-right text-primary font-bold">{formatISK(item.value, iskAbbreviation)}</span>
                                                                                 </div>
 
-                                                                                {/* 4단계: 컨테이너 내부 아이템(SubItem) */}
+                                                                                {/* 함선 내부 적재물 (카테고리별 분할 표시) */}
                                                                                 {showChevron && isItemExpanded && (
-                                                                                    <div className="bg-muted/10 border-t border-b border-border/20 py-0.5 animate-in fade-in duration-200">
+                                                                                    <div className="bg-muted/10 border-t border-b border-border/20 py-1 animate-in fade-in duration-200">
                                                                                         {item.contents && item.contents.length > 0 ? (
-                                                                                            item.contents.map(subItem => (
-                                                                                                <div key={subItem.id} className="flex px-[70px] py-2 text-[11px] text-foreground-muted border-b border-border/20 last:border-none hover:bg-border/5">
-                                                                                                    <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
-                                                                                                    <span className="w-[60px] text-right">{subItem.qty}</span>
-                                                                                                    <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                            item.contents.map(innerCat => (
+                                                                                                <div key={innerCat.categoryId} className="mb-2 last:mb-0">
+                                                                                                    <div className="px-[65px] py-0.5 text-[10px] text-primary/70 font-extrabold uppercase tracking-[0.5px]">
+                                                                                                        {innerCat.categoryName} ({innerCat.items.length})
+                                                                                                    </div>
+                                                                                                    {innerCat.items.map(subItem => (
+                                                                                                        <div key={subItem.id} className="flex px-[75px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
+                                                                                                            <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                                            <span className="w-[60px] text-right">{subItem.qty}</span>
+                                                                                                            <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
+                                                                                                        </div>
+                                                                                                    ))}
                                                                                                 </div>
                                                                                             ))
                                                                                         ) : (
-                                                                                            <div className="px-[70px] py-2 text-[11px] text-foreground-dim/40 italic">
+                                                                                            <div className="px-[65px] py-2 text-[11px] text-foreground-dim/40 italic">
                                                                                                 └ (내용물 없음)
                                                                                             </div>
                                                                                         )}
