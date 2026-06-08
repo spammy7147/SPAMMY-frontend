@@ -18,6 +18,26 @@ export function AssetsTab() {
     // 캐릭터 아코디언 상태 관리
     const [expandedChars, setExpandedChars] = useState({})
 
+    // 검색어 하이라이트 헬퍼 함수
+    const highlightText = (text, search) => {
+        if (!search) return text;
+        const escapedSearch = search.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const parts = text.split(new RegExp(`(${escapedSearch})`, 'gi'));
+        return (
+            <span>
+                {parts.map((part, index) => 
+                    part.toLowerCase() === search.toLowerCase() ? (
+                        <mark key={index} className="bg-gold/20 text-gold font-semibold px-0.5 rounded">
+                            {part}
+                        </mark>
+                    ) : (
+                        part
+                    )
+                )}
+            </span>
+        );
+    };
+
     useEffect(() => {
         const fetchAssets = async () => {
             try {
@@ -193,7 +213,7 @@ export function AssetsTab() {
                                                                             )}
                                                                             <span className="text-sm select-none">{itemIcon}</span>
                                                                             <span className="font-bold text-foreground">
-                                                                                {item.name}
+                                                                                {highlightText(item.name, searchTerm)}
                                                                             </span>
                                                                         </div>
                                                                         <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
@@ -219,7 +239,7 @@ export function AssetsTab() {
                                                                                             </div>
                                                                                             {isInnerCatExpanded && innerCat.items.map(subItem => (
                                                                                                 <div key={subItem.id} className="flex px-[60px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
-                                                                                                    <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                                    <span className="flex-1 font-medium text-foreground-dim">└ {highlightText(subItem.name, searchTerm)}</span>
                                                                                                     <span className="w-[60px] text-right">{subItem.qty}</span>
                                                                                                     <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
                                                                                                 </div>
@@ -281,7 +301,7 @@ export function AssetsTab() {
                                                                                                 )}
                                                                                                 {itemIcon && <span className="text-sm select-none">{itemIcon}</span>}
                                                                                                 <span className={`font-medium ${item.assetType === 'SHIP' ? 'text-indigo-400 font-semibold' : 'text-foreground'}`}>
-                                                                                                    {item.name}
+                                                                                                    {highlightText(item.name, searchTerm)}
                                                                                                 </span>
                                                                                             </div>
                                                                                             <span className="w-[60px] text-right text-foreground-muted font-semibold">{item.qty}</span>
@@ -307,7 +327,7 @@ export function AssetsTab() {
                                                                                                                 </div>
                                                                                                                 {isInnerCatExpanded && innerCat.items.map(subItem => (
                                                                                                                     <div key={subItem.id} className="flex px-[75px] py-1.5 text-[11px] text-foreground-muted border-b border-border/10 last:border-none hover:bg-border/5">
-                                                                                                                        <span className="flex-1 font-medium text-foreground-dim">└ {subItem.name}</span>
+                                                                                                                        <span className="flex-1 font-medium text-foreground-dim">└ {highlightText(subItem.name, searchTerm)}</span>
                                                                                                                         <span className="w-[60px] text-right">{subItem.qty}</span>
                                                                                                                         <span className="w-[120px] text-right text-secondary font-semibold">{formatISK(subItem.value, iskAbbreviation)}</span>
                                                                                                                     </div>
