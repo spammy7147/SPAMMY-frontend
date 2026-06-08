@@ -10,7 +10,7 @@ export function Navbar() {
     const { theme, toggleTheme } = useTheme()
 
     const navItems = [
-        { label: 'Assets', path: '/assets' },
+        { label: 'Assets', path: '/inventory' },
         { label: 'Missions', path: '/missions' },
         { label: 'Market', path: '/market' },
     ]
