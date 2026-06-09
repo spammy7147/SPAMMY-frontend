@@ -3,6 +3,31 @@ import { formatISK } from '@/lib/utils'
 import { useConfig } from '@/store/ConfigContext'
 import { api } from '@/services/api'
 
+function renderLocationName(locationName, className = "text-[13px] font-bold text-foreground") {
+    if (!locationName) return null;
+    const match = locationName.match(/^([+-]?\d+\.\d+)\s+(.*)$/);
+    if (match) {
+        const sec = parseFloat(match[1]);
+        const rest = match[2];
+        let colorClass = "text-foreground-dim";
+        
+        if (sec >= 0.5) {
+            colorClass = "text-emerald-500 font-bold";
+        } else if (sec > 0.0) {
+            colorClass = "text-amber-500 font-bold";
+        } else {
+            colorClass = "text-rose-500 font-bold";
+        }
+        
+        return (
+            <span className={className}>
+                <span className={colorClass}>{match[1]}</span> {rest}
+            </span>
+        );
+    }
+    return <span className={className}>{locationName}</span>;
+}
+
 export function AssetsTab() {
     const { iskAbbreviation } = useConfig()
     const [data, setData] = useState({ characterAssets: [] })
@@ -185,7 +210,7 @@ export function AssetsTab() {
                                                 >
                                                     <div className="flex items-center gap-2.5">
                                                         <ChevronIcon isExpanded={isLocExpanded} className="text-foreground-dim" />
-                                                        <span className="text-[13px] font-bold text-foreground">{loc.locationName}</span>
+                                                        {renderLocationName(loc.locationName)}
                                                     </div>
                                                     <span className="text-xs text-gold font-extrabold">{formatISK(loc.locationTotalValue, iskAbbreviation)} ISK</span>
                                                 </div>

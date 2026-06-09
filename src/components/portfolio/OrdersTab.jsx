@@ -3,6 +3,31 @@ import { formatISK, formatDate, cn } from '@/lib/utils'
 import { useConfig } from '@/store/ConfigContext'
 import { api } from '@/services/api'
 
+function renderLocationName(locationName, className = "text-[13px] font-bold text-foreground") {
+    if (!locationName) return null;
+    const match = locationName.match(/^([+-]?\d+\.\d+)\s+(.*)$/);
+    if (match) {
+        const sec = parseFloat(match[1]);
+        const rest = match[2];
+        let colorClass = "text-foreground-dim";
+        
+        if (sec >= 0.5) {
+            colorClass = "text-emerald-500 font-bold";
+        } else if (sec > 0.0) {
+            colorClass = "text-amber-500 font-bold";
+        } else {
+            colorClass = "text-rose-500 font-bold";
+        }
+        
+        return (
+            <span className={className}>
+                <span className={colorClass}>{match[1]}</span> {rest}
+            </span>
+        );
+    }
+    return <span className={className}>{locationName}</span>;
+}
+
 export function OrdersTab() {
     const { iskAbbreviation, timezone } = useConfig();
     const [data, setData] = useState({ entries: [] })
@@ -108,7 +133,7 @@ export function OrdersTab() {
                                     </td>
                                     <td className="px-3 py-2.5">
                                         <div className="text-foreground font-semibold">{entry.typeName}</div>
-                                        <div className="text-[10px] text-foreground-dim">{entry.locationName}</div>
+                                        {renderLocationName(entry.locationName, "text-[10px] text-foreground-dim")}
                                     </td>
                                     <td className="px-3 py-2.5 text-right text-foreground-muted">
                                         <span className="font-bold text-foreground">{entry.volumeRemain.toLocaleString()}</span>
