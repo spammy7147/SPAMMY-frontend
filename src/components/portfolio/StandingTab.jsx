@@ -1,6 +1,56 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/services/api'
 
+// 헬퍼 함수들
+const getBarColorClass = (val) => {
+    if (val >= 5) return 'bg-success';
+    if (val >= 0) return 'bg-primary';
+    return 'bg-destructive';
+}
+
+const getTextColorClass = (val) => {
+    if (val >= 5) return 'text-success';
+    if (val >= 0) return 'text-primary';
+    return 'text-destructive';
+}
+
+// Chevron SVG 아이콘 컴포넌트
+const ChevronIcon = ({ isExpanded, className = "" }) => (
+    <svg 
+        className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} ${className}`} 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+        strokeWidth={2.5}
+    >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+)
+
+// 스탠딩 Progress Bar 컴포넌트
+const StandingBar = ({ value }) => {
+    if (value === null || value === undefined) {
+        return <span className="text-[11px] text-foreground-dim/40 italic select-none">No direct standing</span>;
+    }
+    return (
+        <div className="flex items-center gap-2.5 w-[200px] md:w-[250px] shrink-0">
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden relative">
+                <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-border z-10"></div>
+                <div 
+                    className={`absolute h-full ${getBarColorClass(value)} transition-all duration-500`}
+                    style={{ 
+                        left: value >= 0 ? '50%' : `${50 + value * 5}%`, 
+                        width: `${Math.abs(value) * 5}%` 
+                    }}
+                ></div>
+            </div>
+            <span className={`text-xs font-extrabold w-11 text-right ${getTextColorClass(value)}`}>
+                {value > 0 ? '+' : ''}{value.toFixed(2)}
+            </span>
+        </div>
+    );
+};
+
 export function StandingTab() {
     const [data, setData] = useState({ characterStandings: [] })
     const [loading, setLoading] = useState(true)
@@ -9,6 +59,18 @@ export function StandingTab() {
     const [expandedChars, setExpandedChars] = useState({})
     const [expandedFactions, setExpandedFactions] = useState({})
     const [expandedCorps, setExpandedCorps] = useState({})
+
+    const toggleChar = (name) => {
+        setExpandedChars(prev => ({ ...prev, [name]: prev[name] === false }));
+    };
+
+    const toggleFaction = (key) => {
+        setExpandedFactions(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleCorp = (key) => {
+        setExpandedCorps(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     useEffect(() => {
         const fetchStandings = async () => {
@@ -25,66 +87,13 @@ export function StandingTab() {
         fetchStandings()
     }, [])
 
-    const toggleChar = (name) => {
-        setExpandedChars(prev => ({ ...prev, [name]: prev[name] === false ? true : false }));
-    };
 
-    const toggleFaction = (key) => {
-        setExpandedFactions(prev => ({ ...prev, [key]: !prev[key] }));
-    };
 
-    const toggleCorp = (key) => {
-        setExpandedCorps(prev => ({ ...prev, [key]: !prev[key] }));
-    };
 
-    const getBarColorClass = (val) => {
-        if (val >= 5) return 'bg-success';
-        if (val >= 0) return 'bg-primary';
-        return 'bg-destructive';
-    }
 
-    const getTextColorClass = (val) => {
-        if (val >= 5) return 'text-success';
-        if (val >= 0) return 'text-primary';
-        return 'text-destructive';
-    }
 
-    // Chevron SVG 아이콘 컴포넌트
-    const ChevronIcon = ({ isExpanded, className = "" }) => (
-        <svg 
-            className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} ${className}`} 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-            strokeWidth={2.5}
-        >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-    )
 
-    // 스탠딩 Progress Bar 컴포넌트
-    const StandingBar = ({ value }) => {
-        if (value === null || value === undefined) {
-            return <span className="text-[11px] text-foreground-dim/40 italic select-none">No direct standing</span>;
-        }
-        return (
-            <div className="flex items-center gap-2.5 w-[200px] md:w-[250px] shrink-0">
-                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden relative">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-border z-10"></div>
-                    <div 
-                        className={`absolute h-full ${getBarColorClass(value)} transition-all duration-500`}
-                        style={{ 
-                            left: value >= 0 ? '50%' : `${50 + value * 5}%`, 
-                            width: `${Math.abs(value) * 5}%` 
-                        }}
-                    ></div>
-                </div>
-                <span className={`text-xs font-extrabold w-11 text-right ${getTextColorClass(value)}`}>
-                    {value > 0 ? '+' : ''}{value.toFixed(2)}
-                </span>
-            </div>
-        );
-    };
+
 
     if (loading) return (
         <div className="text-center py-12 text-foreground-dim tracking-[2px]">
@@ -100,8 +109,17 @@ export function StandingTab() {
                     <div key={charGroup.characterName} className="flex flex-col">
                         {/* 1단계: 캐릭터 아코디언 헤더 */}
                         <div 
+                            role="button"
+                            tabIndex={0}
                             onClick={() => toggleChar(charGroup.characterName)} 
-                            className="flex items-center gap-2.5 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    toggleChar(charGroup.characterName);
+                                }
+                            }}
+                            aria-expanded={isCharExpanded}
+                            className="flex items-center gap-2.5 mb-3 cursor-pointer select-none hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-[2px]"
                         >
                             <ChevronIcon isExpanded={isCharExpanded} className="text-primary w-3.5 h-3.5" />
                             <h3 className="m-0 text-[13px] font-extrabold text-primary tracking-[1px]">
@@ -120,8 +138,17 @@ export function StandingTab() {
                                         <div key={faction.id} className="bg-card border border-border rounded overflow-hidden">
                                             {/* 2단계: Faction 아코디언 헤더 */}
                                             <div 
+                                                role="button"
+                                                tabIndex={0}
                                                 onClick={() => toggleFaction(factionKey)}
-                                                className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors select-none"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        toggleFaction(factionKey);
+                                                    }
+                                                }}
+                                                aria-expanded={isFactionExpanded}
+                                                className="px-[15px] py-3 bg-muted cursor-pointer flex justify-between items-center hover:bg-border/10 transition-colors select-none focus:outline-none focus-visible:bg-border/10 focus-visible:ring-1 focus-visible:ring-primary"
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <ChevronIcon isExpanded={isFactionExpanded} className="text-foreground-dim w-3 h-3" />
@@ -143,8 +170,17 @@ export function StandingTab() {
                                                             <div key={corp.id} className="border-b border-border/30 last:border-none">
                                                                 {/* 3단계: Corporation 아코디언 헤더 */}
                                                                 <div 
+                                                                    role="button"
+                                                                    tabIndex={0}
                                                                     onClick={() => toggleCorp(corpKey)}
-                                                                    className="pl-[35px] pr-[15px] py-2.5 bg-muted/40 cursor-pointer flex justify-between items-center hover:bg-border/5 transition-colors select-none"
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                                            e.preventDefault();
+                                                                            toggleCorp(corpKey);
+                                                                        }
+                                                                    }}
+                                                                    aria-expanded={isCorpExpanded}
+                                                                    className="pl-[35px] pr-[15px] py-2.5 bg-muted/40 cursor-pointer flex justify-between items-center hover:bg-border/5 transition-colors select-none focus:outline-none focus-visible:bg-border/5 focus-visible:ring-1 focus-visible:ring-primary"
                                                                 >
                                                                     <div className="flex items-center gap-2">
                                                                         <ChevronIcon isExpanded={isCorpExpanded} className="text-foreground-dim/60 w-2.5 h-2.5" />
