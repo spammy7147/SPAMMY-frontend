@@ -16,10 +16,10 @@ const getTextColorClass = (val) => {
 
 // Chevron SVG 아이콘 컴포넌트
 const ChevronIcon = ({ isExpanded, className = "" }) => (
-    <svg 
-        className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} ${className}`} 
-        fill="none" 
-        viewBox="0 0 24 24" 
+    <svg
+        className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} ${className}`}
+        fill="none"
+        viewBox="0 0 24 24"
         stroke="currentColor"
         strokeWidth={2.5}
     >
@@ -36,11 +36,11 @@ const StandingBar = ({ value }) => {
         <div className="flex items-center gap-2.5 w-[200px] md:w-[250px] shrink-0">
             <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden relative">
                 <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-border z-10"></div>
-                <div 
+                <div
                     className={`absolute h-full ${getBarColorClass(value)} transition-all duration-500`}
-                    style={{ 
-                        left: value >= 0 ? '50%' : `${50 + value * 5}%`, 
-                        width: `${Math.abs(value) * 5}%` 
+                    style={{
+                        left: value >= 0 ? '50%' : `${50 + value * 5}%`,
+                        width: `${Math.abs(value) * 5}%`
                     }}
                 ></div>
             </div>
@@ -59,6 +59,7 @@ export function StandingTab() {
     const [expandedChars, setExpandedChars] = useState({})
     const [expandedFactions, setExpandedFactions] = useState({})
     const [expandedCorps, setExpandedCorps] = useState({})
+    const [expandedStations, setExpandedStations] = useState({})
 
     const toggleChar = (name) => {
         setExpandedChars(prev => ({ ...prev, [name]: !prev[name] }));
@@ -70,6 +71,10 @@ export function StandingTab() {
 
     const toggleCorp = (key) => {
         setExpandedCorps(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleStation = (key) => {
+        setExpandedStations(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
     useEffect(() => {
@@ -87,14 +92,6 @@ export function StandingTab() {
         fetchStandings()
     }, [])
 
-
-
-
-
-
-
-
-
     if (loading) return (
         <div className="text-center py-12 text-foreground-dim tracking-[2px]">
             LOADING STANDINGS...
@@ -108,10 +105,10 @@ export function StandingTab() {
                 return (
                     <div key={charGroup.characterName} className="flex flex-col">
                         {/* 1단계: 캐릭터 아코디언 헤더 */}
-                        <div 
+                        <div
                             role="button"
                             tabIndex={0}
-                            onClick={() => toggleChar(charGroup.characterName)} 
+                            onClick={() => toggleChar(charGroup.characterName)}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
@@ -137,7 +134,7 @@ export function StandingTab() {
                                     return (
                                         <div key={faction.id} className="bg-card border border-border rounded overflow-hidden">
                                             {/* 2단계: Faction 아코디언 헤더 */}
-                                            <div 
+                                            <div
                                                 role="button"
                                                 tabIndex={0}
                                                 onClick={() => toggleFaction(factionKey)}
@@ -169,7 +166,7 @@ export function StandingTab() {
                                                         return (
                                                             <div key={corp.id} className="border-b border-border/30 last:border-none">
                                                                 {/* 3단계: Corporation 아코디언 헤더 */}
-                                                                <div 
+                                                                <div
                                                                     role="button"
                                                                     tabIndex={0}
                                                                     onClick={() => toggleCorp(corpKey)}
@@ -192,29 +189,84 @@ export function StandingTab() {
                                                                     <StandingBar value={corp.value} />
                                                                 </div>
 
-                                                                {/* 4단계: Agent 플랫 리스트 */}
-                                                                {isCorpExpanded && (
-                                                                    <div className="bg-muted/5 border-t border-border/20 py-1">
-                                                                        {corp.agents && corp.agents.length > 0 ? corp.agents.map((agent) => (
-                                                                            <div 
-                                                                                key={agent.id} 
-                                                                                className="flex pl-[55px] pr-[15px] py-2 text-[11px] text-foreground-muted justify-between items-center border-b border-border/10 last:border-none hover:bg-border/5"
-                                                                            >
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    <span className="text-foreground-dim">└ {agent.name}</span>
-                                                                                    <span className="text-[9px] text-foreground-dim/50 border border-border/30 px-1 py-[1px] rounded-[2px] font-medium scale-90 origin-left">
-                                                                                        Agent
-                                                                                    </span>
-                                                                                </div>
-                                                                                <StandingBar value={agent.value} />
-                                                                            </div>
-                                                                        )) : (
-                                                                            <div className="pl-[55px] py-2 text-[11px] text-foreground-dim/40 italic select-none">
+                                                                {/* 4단계: Station별 Agent 그룹 (아코디언) */}
+                                                                {isCorpExpanded && (() => {
+                                                                    if (!corp.agents || corp.agents.length === 0) {
+                                                                        return (
+                                                                            <div className="pl-[55px] py-2.5 text-[11px] text-foreground-dim/40 italic select-none border-t border-border/20">
                                                                                 └ No active agents found
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
+                                                                        );
+                                                                    }
+                                                                    // location 기준으로 그룹핑
+                                                                    const stationGroups = corp.agents.reduce((acc, agent) => {
+                                                                        const key = agent.location || 'Unknown Station';
+                                                                        if (!acc[key]) acc[key] = [];
+                                                                        acc[key].push(agent);
+                                                                        return acc;
+                                                                    }, {});
+
+                                                                    return (
+                                                                        <div className="border-t border-border/20">
+                                                                            {Object.entries(stationGroups).map(([station, agents]) => {
+                                                                                const stationKey = `${corpKey}-${station}`;
+                                                                                const isStationExpanded = !!expandedStations[stationKey];
+                                                                                return (
+                                                                                    <div key={station} className="border-b border-border/15 last:border-none">
+                                                                                        {/* Station 아코디언 헤더 */}
+                                                                                        <div
+                                                                                            role="button"
+                                                                                            tabIndex={0}
+                                                                                            onClick={() => toggleStation(stationKey)}
+                                                                                            onKeyDown={(e) => {
+                                                                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                                                                    e.preventDefault();
+                                                                                                    toggleStation(stationKey);
+                                                                                                }
+                                                                                            }}
+                                                                                            aria-expanded={isStationExpanded}
+                                                                                            className="flex items-center justify-between pl-[50px] pr-[15px] py-2.5 bg-primary/5 border-b border-primary/10 hover:bg-primary/10 cursor-pointer select-none transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                                                                        >
+                                                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                                                <ChevronIcon isExpanded={isStationExpanded} className="text-primary/60 w-2.5 h-2.5 shrink-0" />
+                                                                                                {/* 빌딩 아이콘 */}
+                                                                                                <svg className="w-3.5 h-3.5 text-primary/70 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                                                                                                </svg>
+                                                                                                <span className="text-[11px] text-foreground/90 font-semibold tracking-wide truncate">{station}</span>
+                                                                                            </div>
+                                                                                            {/* 에이전트 수 뱃지 */}
+                                                                                            <span className="text-[9px] text-primary/70 border border-primary/30 bg-primary/5 px-1.5 py-0.5 rounded-[2px] font-bold shrink-0 ml-2">
+                                                                                                {agents.length}
+                                                                                            </span>
+                                                                                        </div>
+
+                                                                                        {/* 해당 Station의 Agent 목록 */}
+                                                                                        {isStationExpanded && (
+                                                                                            <div className="animate-in fade-in duration-150">
+                                                                                                {agents.map((agent) => (
+                                                                                                    <div
+                                                                                                        key={agent.id}
+                                                                                                        className="flex pl-[70px] pr-[15px] py-2 text-[11px] text-foreground-muted justify-between items-center border-b border-border/10 last:border-none hover:bg-border/5 transition-colors"
+                                                                                                    >
+                                                                                                        <div className="flex items-center gap-1.5">
+                                                                                                            <span className="text-foreground-dim/40">└</span>
+                                                                                                            <span className="text-foreground-dim">{agent.name}</span>
+                                                                                                            <span className="text-[9px] text-foreground-dim/50 border border-border/30 px-1 py-[1px] rounded-[2px] font-medium scale-90 origin-left shrink-0">
+                                                                                                                Agent
+                                                                                                            </span>
+                                                                                                        </div>
+                                                                                                        <StandingBar value={agent.value} />
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         );
                                                     }) : (
