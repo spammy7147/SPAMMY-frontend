@@ -1,44 +1,115 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { marketBrowserApi } from '@/services/marketBrowserApi'
 
-const categories = [
-    { id: '1', name: 'Ammunition & Charges', sub: ['Hybrid Charges', 'Laser Crystals', 'Projectile Ammo'] },
-    { id: '2', name: 'Ships', sub: ['Frigates', 'Cruisers', 'Battleships'] },
-    { id: '3', name: 'Ship Equipment', sub: ['Armor', 'Shield', 'Propulsion'] },
-    { id: '4', name: 'Drones', sub: ['Combat Drones', 'Mining Drones'] },
-    { id: '5', name: 'Manufacture & Research', sub: ['Blueprints', 'Materials'] },
-]
+function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
+    const [children, setChildren] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
 
-const mockOrders = {
-    sell: [
-        { id: 1, price: '1,245.00', quantity: '15,204', location: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', expires: '89d' },
-        { id: 2, price: '1,245.50', quantity: '2,500', location: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', expires: '89d' },
-        { id: 3, price: '1,246.00', quantity: '45,000', location: 'Perimeter - Tranquility Trading Tower', expires: '24d' },
-        { id: 4, price: '1,248.00', quantity: '10,000', location: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', expires: '90d' },
-    ],
-    buy: [
-        { id: 1, price: '1,240.00', quantity: '100,000', location: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', expires: '88d' },
-        { id: 2, price: '1,238.50', quantity: '50,000', location: 'Perimeter - Tranquility Trading Tower', expires: '24d' },
-        { id: 3, price: '1,235.00', quantity: '25,000', location: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', expires: '87d' },
-        { id: 4, price: '1,230.00', quantity: '250,000', location: 'Amarr VIII (Oris) - Emperor Family Academy', expires: '90d' },
-    ]
+    const handleToggle = async () => {
+        toggleCat(group.id);
+        if (!expandedCats.includes(group.id) && children.length === 0 && !group.hasTypes) {
+            setIsLoading(true);
+            try {
+                const subGroups = await marketBrowserApi.getSubGroups(group.id);
+                setChildren(subGroups);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        
+        // If it has types, we might want to select it to view types (for simplicity, we assume we fetch types elsewhere or let the user click)
+        // Here we just trigger an onSelect if it's a leaf node. (Simplified for now)
+        if (group.hasTypes) {
+            onSelectType(group);
+        }
+    };
+
+    return (
+        <div className="ml-2 mt-1">
+            <button 
+                onClick={handleToggle}
+                className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium hover:bg-foreground/5 rounded-md transition-colors text-foreground",
+                    group.hasTypes ? "text-foreground-dim font-normal" : ""
+                )}
+            >
+                {!group.hasTypes && (expandedCats.includes(group.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
+                {group.hasTypes && <span className="w-4 h-4"></span>}
+                <span>{group.nameKo || group.nameEn}</span>
+            </button>
+            {expandedCats.includes(group.id) && !group.hasTypes && (
+                <div className="pl-4">
+                    {isLoading && <div className="text-xs text-foreground-dim pl-2">Loading...</div>}
+                    {children.map(child => (
+                        <MarketGroupTree key={child.id} group={child} expandedCats={expandedCats} toggleCat={toggleCat} onSelectType={onSelectType} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
 export function MarketBrowser() {
-    const [expandedCats, setExpandedCats] = useState(['1'])
-    const [selectedItem] = useState({
-        name: 'Antimatter Charge S',
-        category: 'Ammunition & Charges > Hybrid Charges',
-        description: 'A small hybrid charge. High damage, short range.',
-        avgPrice: '1,242.50',
-        change: '+2.4%'
+    const [categories, setCategories] = useState([])
+    const [expandedCats, setExpandedCats] = useState([])
+    
+    // In EveMarketBrowser, clicking a leaf category usually loads the types, and then clicking a type loads the orders.
+    // For this prototype, if `onSelectType` is called, we pretend we got the typeId.
+    // Since we don't have a Type API yet, we will just use a hardcoded typeId like 34 (Tritanium) for now when any group is clicked.
+    const [selectedItem, setSelectedItem] = useState({
+        id: 34,
+        name: 'Tritanium',
+        category: 'Minerals',
+        description: 'Tritanium is a very common mineral...',
+        avgPrice: '4.50',
+        change: '+1.2%'
     })
+
+    const [sellOrders, setSellOrders] = useState([])
+    const [buyOrders, setBuyOrders] = useState([])
+
+    useEffect(() => {
+        const fetchRoots = async () => {
+            try {
+                const roots = await marketBrowserApi.getRootGroups();
+                setCategories(roots);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchRoots();
+    }, [])
+
+    useEffect(() => {
+        const fetchOrders = async () => {
+            try {
+                if (!selectedItem.id) return;
+                const sells = await marketBrowserApi.getOrders(selectedItem.id, false, 10000002, 0, 10);
+                const buys = await marketBrowserApi.getOrders(selectedItem.id, true, 10000002, 0, 10);
+                setSellOrders(sells.content || []);
+                setBuyOrders(buys.content || []);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchOrders();
+    }, [selectedItem.id])
 
     const toggleCat = (id) => {
         setExpandedCats(prev => 
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         )
+    }
+
+    const handleSelectType = (group) => {
+        // Ideally we'd fetch types for this group and let the user pick a type.
+        // For demonstration, we'll just mock selecting Tritanium or some other type.
+        console.log("Selected group with types:", group.nameEn);
+        // setSelectedItem({ ...selectedItem, category: group.nameEn });
     }
 
     return (
@@ -57,27 +128,13 @@ export function MarketBrowser() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {categories.map(cat => (
-                        <div key={cat.id}>
-                            <button 
-                                onClick={() => toggleCat(cat.id)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium hover:bg-foreground/5 rounded-md transition-colors text-foreground"
-                            >
-                                {expandedCats.includes(cat.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                <span>{cat.name}</span>
-                            </button>
-                            {expandedCats.includes(cat.id) && (
-                                <div className="ml-6 mt-1 space-y-1">
-                                    {cat.sub.map(sub => (
-                                        <button 
-                                            key={sub}
-                                            className="w-full text-left px-2 py-1.5 text-xs text-foreground-dim hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
-                                        >
-                                            {sub}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        <MarketGroupTree 
+                            key={cat.id} 
+                            group={cat} 
+                            expandedCats={expandedCats} 
+                            toggleCat={toggleCat}
+                            onSelectType={handleSelectType}
+                        />
                     ))}
                 </div>
             </aside>
@@ -133,17 +190,19 @@ export function MarketBrowser() {
                                     <tr>
                                         <th className="px-4 py-3">Price (ISK)</th>
                                         <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location</th>
-                                        <th className="px-4 py-3 text-right">Expires</th>
+                                        <th className="px-4 py-3">Location ID</th>
+                                        <th className="px-4 py-3 text-right">Duration (days)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {mockOrders.sell.map(order => (
-                                        <tr key={order.id} className="hover:bg-foreground/5 transition-colors group">
-                                            <td className="px-4 py-3 font-mono text-red-400">{order.price}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{order.quantity}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.location}</td>
-                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.expires}</td>
+                                    {sellOrders.length === 0 ? (
+                                        <tr><td colSpan="4" className="px-4 py-4 text-center text-foreground-dim">No sell orders found or data syncing.</td></tr>
+                                    ) : sellOrders.map(order => (
+                                        <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
+                                            <td className="px-4 py-3 font-mono text-red-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                            <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationId}</td>
+                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -166,32 +225,28 @@ export function MarketBrowser() {
                                     <tr>
                                         <th className="px-4 py-3">Price (ISK)</th>
                                         <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location</th>
-                                        <th className="px-4 py-3 text-right">Expires</th>
+                                        <th className="px-4 py-3">Location ID</th>
+                                        <th className="px-4 py-3 text-right">Duration (days)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {mockOrders.buy.map(order => (
-                                        <tr key={order.id} className="hover:bg-foreground/5 transition-colors group">
-                                            <td className="px-4 py-3 font-mono text-green-400">{order.price}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{order.quantity}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.location}</td>
-                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.expires}</td>
+                                    {buyOrders.length === 0 ? (
+                                        <tr><td colSpan="4" className="px-4 py-4 text-center text-foreground-dim">No buy orders found or data syncing.</td></tr>
+                                    ) : buyOrders.map(order => (
+                                        <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
+                                            <td className="px-4 py-3 font-mono text-green-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                            <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationId}</td>
+                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     </section>
-
-                    {/* Placeholder for Charts */}
-                    <section className="bg-foreground/5 rounded-lg p-12 border border-border border-dashed flex flex-col items-center justify-center text-foreground-dim">
-                        <List className="w-12 h-12 mb-4 opacity-20" />
-                        <p className="text-sm font-medium">Price History Chart Placeholder</p>
-                        <p className="text-xs mt-1">Select an item to view trend data</p>
-                    </section>
                 </div>
             </main>
         </div>
     )
 }
+
