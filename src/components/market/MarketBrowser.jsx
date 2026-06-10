@@ -190,7 +190,7 @@ export function MarketBrowser() {
                                     <tr>
                                         <th className="px-4 py-3">Price (ISK)</th>
                                         <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location ID</th>
+                                        <th className="px-4 py-3">Location</th>
                                         <th className="px-4 py-3 text-right">Duration (days)</th>
                                     </tr>
                                 </thead>
@@ -201,7 +201,7 @@ export function MarketBrowser() {
                                         <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
                                             <td className="px-4 py-3 font-mono text-red-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                             <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationId}</td>
+                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
                                             <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
                                         </tr>
                                     ))}
@@ -225,7 +225,7 @@ export function MarketBrowser() {
                                     <tr>
                                         <th className="px-4 py-3">Price (ISK)</th>
                                         <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location ID</th>
+                                        <th className="px-4 py-3">Location</th>
                                         <th className="px-4 py-3 text-right">Duration (days)</th>
                                     </tr>
                                 </thead>
@@ -236,7 +236,7 @@ export function MarketBrowser() {
                                         <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
                                             <td className="px-4 py-3 font-mono text-green-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                             <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationId}</td>
+                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
                                             <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
                                         </tr>
                                     ))}
