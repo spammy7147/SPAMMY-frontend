@@ -1,4 +1,4 @@
-const fetchApi = async (url, options = {}) => {
+export const fetchApi = async (url, options = {}) => {
     const res = await fetch(url, {
         ...options,
         credentials: 'include',
