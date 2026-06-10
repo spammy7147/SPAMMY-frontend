@@ -61,7 +61,7 @@ export function StandingTab() {
     const [expandedCorps, setExpandedCorps] = useState({})
 
     const toggleChar = (name) => {
-        setExpandedChars(prev => ({ ...prev, [name]: prev[name] === false }));
+        setExpandedChars(prev => ({ ...prev, [name]: !prev[name] }));
     };
 
     const toggleFaction = (key) => {
@@ -104,7 +104,7 @@ export function StandingTab() {
     return (
         <div className="flex flex-col gap-6">
             {data.characterStandings && data.characterStandings.length > 0 ? data.characterStandings.map((charGroup) => {
-                const isCharExpanded = expandedChars[charGroup.characterName] !== false;
+                const isCharExpanded = !!expandedChars[charGroup.characterName];
                 return (
                     <div key={charGroup.characterName} className="flex flex-col">
                         {/* 1단계: 캐릭터 아코디언 헤더 */}
@@ -185,7 +185,7 @@ export function StandingTab() {
                                                                     <div className="flex items-center gap-2">
                                                                         <ChevronIcon isExpanded={isCorpExpanded} className="text-foreground-dim/60 w-2.5 h-2.5" />
                                                                         <span className="text-xs font-semibold text-foreground-muted">{corp.name}</span>
-                                                                        <span className="text-[9px] text-foreground-dim/70 border border-border/70 px-1 py-0.2 rounded-[2px] font-semibold scale-90 origin-left">
+                                                                        <span className="text-[9px] text-foreground-dim/70 border border-border/70 px-1 py-[2px] rounded-[2px] font-semibold scale-90 origin-left">
                                                                             Corp
                                                                         </span>
                                                                     </div>
@@ -202,7 +202,7 @@ export function StandingTab() {
                                                                             >
                                                                                 <div className="flex items-center gap-1.5">
                                                                                     <span className="text-foreground-dim">└ {agent.name}</span>
-                                                                                    <span className="text-[9px] text-foreground-dim/50 border border-border/30 px-1 py-0.1 rounded-[2px] font-medium scale-90 origin-left">
+                                                                                    <span className="text-[9px] text-foreground-dim/50 border border-border/30 px-1 py-[1px] rounded-[2px] font-medium scale-90 origin-left">
                                                                                         Agent
                                                                                     </span>
                                                                                 </div>
