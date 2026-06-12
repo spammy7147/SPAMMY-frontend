@@ -39,6 +39,7 @@ function App() {
                                 <Route path="/inventory" element={<AssetsPage />} />
                                 <Route path="/missions" element={<MissionsPage />} />
                                 <Route path="/market" element={<MarketPage />} />
+                                <Route path="/market/region/:regionId/type/:typeId" element={<MarketPage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
                             </Route>
                             
