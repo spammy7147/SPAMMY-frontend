@@ -39,7 +39,7 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
                                 <span className="truncate">{child.nameEn || child.nameKo}</span>
                             </button>
                         ) : (
-                            <MarketGroupTree key={child.id} group={child} expandedCats={expandedCats} toggleCat={toggleCat} onSelectType={onSelectType} />
+                            <MarketGroupTree key={`group-${child.id}`} group={child} expandedCats={expandedCats} toggleCat={toggleCat} onSelectType={onSelectType} />
                         )
                     ))}
                 </div>
@@ -61,6 +61,21 @@ const formatExpiresIn = (issuedStr, durationDays) => {
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 };
 
+// 트리 내에서 특정 Type ID 검색 헬퍼 (순수 함수 형태로 컴포넌트 외부에 정의하여 ESLint 에러 방지)
+const findTypeInTree = (nodes, id) => {
+    for (const node of nodes) {
+        if (node.types) {
+            const t = node.types.find(x => x.id === id);
+            if (t) return { type: t, parentName: node.nameEn || node.nameKo };
+        }
+        if (node.subGroups) {
+            const found = findTypeInTree(node.subGroups, id);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
 export function MarketBrowser() {
     const { regionId, typeId } = useParams();
     const navigate = useNavigate();
@@ -68,15 +83,38 @@ export function MarketBrowser() {
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
     
-    // Selected item state
-    const [selectedItem, setSelectedItem] = useState({
-        id: null,
-        name: 'Select an item',
-        category: '',
-        description: '',
-        avgPrice: '0.00',
-        change: '0%'
-    })
+    // Selected item state (URL과 categories로부터 유도된 상태로 관리하여 Cascading 렌더링 방지)
+    const selectedItem = (() => {
+        if (!typeId || categories.length === 0) {
+            return {
+                id: null,
+                name: 'Select an item',
+                category: '',
+                description: '',
+                avgPrice: '0.00',
+                change: '0%'
+            };
+        }
+        const found = findTypeInTree(categories, Number(typeId));
+        if (found) {
+            return {
+                id: found.type.id,
+                name: found.type.nameEn || found.type.nameKo,
+                category: found.parentName,
+                description: '',
+                avgPrice: '0.00',
+                change: '0%'
+            };
+        }
+        return {
+            id: null,
+            name: 'Select an item',
+            category: '',
+            description: '',
+            avgPrice: '0.00',
+            change: '0%'
+        };
+    })();
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
@@ -99,10 +137,10 @@ export function MarketBrowser() {
         fetchInitialData();
     }, [])
 
+    // 1. URL 파라미터 변경 시 주문 데이터만 조회 (categories 의존성 제거)
     useEffect(() => {
-        const syncAndFetchOrders = async () => {
+        const fetchOrders = async () => {
             if (!typeId) return;
-
             const rId = regionId ? Number(regionId) : 10000002;
             setSelectedRegion(rId);
 
@@ -110,41 +148,13 @@ export function MarketBrowser() {
                 const response = await marketBrowserApi.getOrdersUnified(rId, Number(typeId));
                 setSellOrders(response.sellOrders || []);
                 setBuyOrders(response.buyOrders || []);
-
-                if (categories.length > 0) {
-                    const found = findTypeInTree(categories, Number(typeId));
-                    if (found) {
-                        setSelectedItem({
-                            id: found.type.id,
-                            name: found.type.nameEn || found.type.nameKo,
-                            category: found.parentName,
-                            description: '',
-                            avgPrice: '0.00',
-                            change: '0%'
-                        });
-                    }
-                }
             } catch (err) {
                 console.error(err);
             }
         };
-        syncAndFetchOrders();
-    }, [regionId, typeId, categories])
+        fetchOrders();
+    }, [regionId, typeId]);
 
-    // 트리 내에서 특정 Type ID 검색 헬퍼
-    const findTypeInTree = (nodes, id, parentName = '') => {
-        for (const node of nodes) {
-            if (node.types) {
-                const t = node.types.find(x => x.id === id);
-                if (t) return { type: t, parentName: node.nameEn || node.nameKo };
-            }
-            if (node.subGroups) {
-                const found = findTypeInTree(node.subGroups, id, node.nameEn || node.nameKo);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
 
     const toggleCat = (id) => {
         setExpandedCats(prev => 
@@ -152,15 +162,7 @@ export function MarketBrowser() {
         )
     }
 
-    const handleSelectType = (type, categoryName) => {
-        setSelectedItem({
-            id: type.id,
-            name: type.nameEn || type.nameKo,
-            category: categoryName,
-            description: '',
-            avgPrice: '0.00',
-            change: '0%'
-        });
+    const handleSelectType = (type) => {
         navigate(`/market/region/${selectedRegion}/type/${type.id}`);
     }
 
