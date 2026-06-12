@@ -1,51 +1,46 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
 
 function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
-    const [children, setChildren] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleToggle = async () => {
+    const handleToggle = () => {
         toggleCat(group.id);
-        if (!expandedCats.includes(group.id) && children.length === 0 && !group.hasTypes) {
-            setIsLoading(true);
-            try {
-                const subGroups = await marketBrowserApi.getSubGroups(group.id);
-                setChildren(subGroups);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-        
-        // If it has types, we might want to select it to view types (for simplicity, we assume we fetch types elsewhere or let the user click)
-        // Here we just trigger an onSelect if it's a leaf node. (Simplified for now)
-        if (group.hasTypes) {
-            onSelectType(group);
-        }
     };
+
+    const children = [
+        ...(group.subGroups || []),
+        ...(group.types || []).map(t => ({ ...t, isType: true }))
+    ];
 
     return (
         <div className="ml-2 mt-1">
             <button 
                 onClick={handleToggle}
                 className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium hover:bg-foreground/5 rounded-md transition-colors text-foreground",
+                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left",
                     group.hasTypes ? "text-foreground-dim font-normal" : ""
                 )}
             >
-                {!group.hasTypes && (expandedCats.includes(group.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
-                {group.hasTypes && <span className="w-4 h-4"></span>}
-                <span>{group.nameKo || group.nameEn}</span>
+                {expandedCats.includes(group.id) ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                <span className="truncate">{group.nameEn || group.nameKo}</span>
             </button>
-            {expandedCats.includes(group.id) && !group.hasTypes && (
+            {expandedCats.includes(group.id) && (
                 <div className="pl-4">
-                    {isLoading && <div className="text-xs text-foreground-dim pl-2">Loading...</div>}
                     {children.map(child => (
-                        <MarketGroupTree key={child.id} group={child} expandedCats={expandedCats} toggleCat={toggleCat} onSelectType={onSelectType} />
+                        child.isType ? (
+                            <button 
+                                key={`type-${child.id}`}
+                                onClick={() => onSelectType(child, group.nameEn || group.nameKo)}
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground-dim hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
+                            >
+                                <span className="w-3 h-3 shrink-0"></span>
+                                <span className="truncate">{child.nameEn || child.nameKo}</span>
+                            </button>
+                        ) : (
+                            <MarketGroupTree key={child.id} group={child} expandedCats={expandedCats} toggleCat={toggleCat} onSelectType={onSelectType} />
+                        )
                     ))}
                 </div>
             )}
@@ -53,51 +48,103 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
     );
 }
 
+const formatExpiresIn = (issuedStr, durationDays) => {
+    if (!issuedStr || !durationDays) return `${durationDays}d`;
+    const issuedDate = new Date(issuedStr);
+    const expiresDate = new Date(issuedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const diffMs = expiresDate.getTime() - new Date().getTime();
+    if (diffMs <= 0) return "Expired";
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+};
+
 export function MarketBrowser() {
+    const { regionId, typeId } = useParams();
+    const navigate = useNavigate();
+
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
     
-    // In EveMarketBrowser, clicking a leaf category usually loads the types, and then clicking a type loads the orders.
-    // For this prototype, if `onSelectType` is called, we pretend we got the typeId.
-    // Since we don't have a Type API yet, we will just use a hardcoded typeId like 34 (Tritanium) for now when any group is clicked.
+    // Selected item state
     const [selectedItem, setSelectedItem] = useState({
-        id: 34,
-        name: 'Tritanium',
-        category: 'Minerals',
-        description: 'Tritanium is a very common mineral...',
-        avgPrice: '4.50',
-        change: '+1.2%'
+        id: null,
+        name: 'Select an item',
+        category: '',
+        description: '',
+        avgPrice: '0.00',
+        change: '0%'
     })
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
+    const [regions, setRegions] = useState([])
+    const [selectedRegion, setSelectedRegion] = useState(10000002)
 
     useEffect(() => {
-        const fetchRoots = async () => {
+        const fetchInitialData = async () => {
             try {
-                const roots = await marketBrowserApi.getRootGroups();
-                setCategories(roots);
+                const [tree, regionList] = await Promise.all([
+                    marketBrowserApi.getItemTree(),
+                    marketBrowserApi.getRegions()
+                ]);
+                setCategories(tree);
+                setRegions(regionList);
             } catch (err) {
                 console.error(err);
             }
         };
-        fetchRoots();
+        fetchInitialData();
     }, [])
 
     useEffect(() => {
-        const fetchOrders = async () => {
+        const syncAndFetchOrders = async () => {
+            if (!typeId) return;
+
+            const rId = regionId ? Number(regionId) : 10000002;
+            setSelectedRegion(rId);
+
             try {
-                if (!selectedItem.id) return;
-                const sells = await marketBrowserApi.getOrders(selectedItem.id, false, 10000002, 0, 10);
-                const buys = await marketBrowserApi.getOrders(selectedItem.id, true, 10000002, 0, 10);
-                setSellOrders(sells.content || []);
-                setBuyOrders(buys.content || []);
+                const response = await marketBrowserApi.getOrdersUnified(rId, Number(typeId));
+                setSellOrders(response.sellOrders || []);
+                setBuyOrders(response.buyOrders || []);
+
+                if (categories.length > 0) {
+                    const found = findTypeInTree(categories, Number(typeId));
+                    if (found) {
+                        setSelectedItem({
+                            id: found.type.id,
+                            name: found.type.nameEn || found.type.nameKo,
+                            category: found.parentName,
+                            description: '',
+                            avgPrice: '0.00',
+                            change: '0%'
+                        });
+                    }
+                }
             } catch (err) {
                 console.error(err);
             }
         };
-        fetchOrders();
-    }, [selectedItem.id])
+        syncAndFetchOrders();
+    }, [regionId, typeId, categories])
+
+    // 트리 내에서 특정 Type ID 검색 헬퍼
+    const findTypeInTree = (nodes, id, parentName = '') => {
+        for (const node of nodes) {
+            if (node.types) {
+                const t = node.types.find(x => x.id === id);
+                if (t) return { type: t, parentName: node.nameEn || node.nameKo };
+            }
+            if (node.subGroups) {
+                const found = findTypeInTree(node.subGroups, id, node.nameEn || node.nameKo);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
 
     const toggleCat = (id) => {
         setExpandedCats(prev => 
@@ -105,28 +152,67 @@ export function MarketBrowser() {
         )
     }
 
-    const handleSelectType = (group) => {
-        // Ideally we'd fetch types for this group and let the user pick a type.
-        // For demonstration, we'll just mock selecting Tritanium or some other type.
-        console.log("Selected group with types:", group.nameEn);
-        // setSelectedItem({ ...selectedItem, category: group.nameEn });
+    const handleSelectType = (type, categoryName) => {
+        setSelectedItem({
+            id: type.id,
+            name: type.nameEn || type.nameKo,
+            category: categoryName,
+            description: '',
+            avgPrice: '0.00',
+            change: '0%'
+        });
+        navigate(`/market/region/${selectedRegion}/type/${type.id}`);
     }
 
     return (
-        <div className="flex h-[800px] border border-border rounded-lg overflow-hidden bg-background">
-            {/* Sidebar: Categories */}
-            <aside className="w-80 border-r border-border flex flex-col bg-muted/30">
-                <div className="p-4 border-b border-border">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-dim" />
-                        <input 
-                            type="text" 
-                            placeholder="Search market..." 
-                            className="w-full bg-background border border-border rounded-md pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
-                        />
-                    </div>
+        <div className="flex flex-col h-[850px] border border-border rounded-lg overflow-hidden bg-background">
+            {/* Global Top Bar */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-muted/20">
+                <div className="flex items-center gap-6">
+                    <h1 className="text-lg font-bold tracking-wide flex items-center gap-2">
+                        <LayoutGrid className="w-5 h-5" />
+                        EVE Market Browser
+                    </h1>
+                    <button className="text-sm font-medium text-foreground-dim hover:text-foreground">About</button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-foreground-dim">Region :</span>
+                    <select 
+                        className="bg-background border border-border rounded-md px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-secondary cursor-pointer"
+                        value={selectedRegion}
+                        onChange={(e) => {
+                            const newRegionId = Number(e.target.value);
+                            setSelectedRegion(newRegionId);
+                            if (selectedItem.id) {
+                                navigate(`/market/region/${newRegionId}/type/${selectedItem.id}`);
+                            }
+                        }}
+                    >
+                        {regions.map(r => (
+                            <option key={r.regionId} value={r.regionId}>{r.name}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            <div className="flex flex-1 min-h-0">
+                {/* Sidebar: Categories */}
+                <aside className="w-80 border-r border-border flex flex-col bg-muted/10">
+                    <div className="flex items-center gap-6 px-4 pt-4 border-b border-border bg-background">
+                        <button className="text-sm font-semibold border-b-2 border-foreground pb-2 text-foreground">Browse</button>
+                        <button className="text-sm font-medium border-b-2 border-transparent pb-2 text-foreground-dim hover:text-foreground">Quickbar</button>
+                    </div>
+                    <div className="p-3 border-b border-border">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-dim" />
+                            <input 
+                                type="text" 
+                                placeholder="Search..." 
+                                className="w-full bg-background border border-border rounded-sm pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
                     {categories.map(cat => (
                         <MarketGroupTree 
                             key={cat.id} 
@@ -139,113 +225,99 @@ export function MarketBrowser() {
                 </div>
             </aside>
 
-            {/* Main Content Area */}
-            <main className="flex-1 flex flex-col min-w-0 bg-background">
-                {/* Item Header */}
-                <header className="p-6 border-b border-border">
-                    <div className="flex justify-between items-start">
-                        <div className="flex gap-4">
-                            <div className="w-16 h-16 bg-foreground/5 rounded-lg flex items-center justify-center border border-border">
-                                <LayoutGrid className="w-8 h-8 text-foreground-dim" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold">{selectedItem.name}</h1>
-                                <p className="text-sm text-foreground-dim">{selectedItem.category}</p>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-sm font-medium bg-foreground/5 px-2 py-0.5 rounded border border-border flex items-center gap-1">
-                                        Avg: {selectedItem.avgPrice} ISK
-                                        <span className={cn(
-                                            "flex items-center text-[10px]",
-                                            selectedItem.change.startsWith('+') ? "text-green-500" : "text-red-500"
-                                        )}>
-                                            {selectedItem.change.startsWith('+') ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                                            {selectedItem.change}
-                                        </span>
-                                    </span>
-                                </div>
-                            </div>
+                {/* Main Content Area */}
+                <main className="flex-1 flex flex-col min-w-0 bg-background">
+                    {/* Item Header */}
+                    <header className="px-6 pt-6 border-b border-border">
+                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2">
+                            <span>Market Groups</span> 
+                            <span>/</span> 
+                            <span>{selectedItem.category || 'Category'}</span>
                         </div>
-                        <div className="flex gap-2">
-                            <button className="p-2 hover:bg-foreground/5 rounded-md border border-border text-foreground-dim">
-                                <Info className="w-5 h-5" />
+                        <div className="flex justify-between items-start">
+                            <div className="flex gap-4 items-center">
+                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border">
+                                    <LayoutGrid className="w-7 h-7 text-foreground-dim" />
+                                </div>
+                                <h2 className="text-3xl font-bold">{selectedItem.name}</h2>
+                            </div>
+                            <button className="px-3 py-1.5 hover:bg-foreground/5 rounded border border-border text-xs font-medium flex items-center gap-1.5 text-foreground-dim hover:text-foreground transition-colors">
+                                <span className="text-lg leading-none">+</span> Add To Quickbar
                             </button>
                         </div>
+                        
+                        <div className="flex items-center gap-6 mt-8">
+                            <button className="text-sm font-medium border-b-2 border-foreground pb-2 text-foreground">Market Data</button>
+                            <button className="text-sm font-medium border-b-2 border-transparent pb-2 text-foreground-dim hover:text-foreground">Price History</button>
+                        </div>
+                    </header>
+
+                    {/* Orders Tables */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                        {/* Sell Orders */}
+                        <section>
+                            <h3 className="text-xl font-bold mb-3 tracking-tight">Sellers</h3>
+                            <div className="border-t border-border pt-2">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="text-foreground-dim font-medium border-b border-border/50">
+                                        <tr>
+                                            <th className="px-2 py-2 text-right">Quantity</th>
+                                            <th className="px-4 py-2 text-right">Price</th>
+                                            <th className="px-4 py-2">Location</th>
+                                            <th className="px-4 py-2">Expires in</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-transparent">
+                                        {sellOrders.length === 0 ? (
+                                            <tr><td colSpan="4" className="px-2 py-4 text-center text-foreground-dim">No sell orders found.</td></tr>
+                                        ) : sellOrders.map(order => (
+                                            <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
+                                                <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1.5 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1.5 text-foreground-dim font-mono">{formatExpiresIn(order.issued, order.duration)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                        {/* Buy Orders */}
+                        <section>
+                            <h3 className="text-xl font-bold mb-3 tracking-tight">Buyers</h3>
+                            <div className="border-t border-border pt-2">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="text-foreground-dim font-medium border-b border-border/50">
+                                        <tr>
+                                            <th className="px-2 py-2 text-right">Quantity</th>
+                                            <th className="px-4 py-2 text-right">Price</th>
+                                            <th className="px-4 py-2">Range</th>
+                                            <th className="px-4 py-2">Location</th>
+                                            <th className="px-4 py-2 text-right">Min Volume</th>
+                                            <th className="px-4 py-2">Expires in</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-transparent">
+                                        {buyOrders.length === 0 ? (
+                                            <tr><td colSpan="6" className="px-2 py-4 text-center text-foreground-dim">No buy orders found.</td></tr>
+                                        ) : buyOrders.map(order => (
+                                            <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
+                                                <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1.5 text-foreground-dim">Region</td>
+                                                <td className="px-4 py-1.5 truncate max-w-[250px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">1</td>
+                                                <td className="px-4 py-1.5 text-foreground-dim font-mono">{formatExpiresIn(order.issued, order.duration)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>
-                </header>
-
-                {/* Orders Tables */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                    {/* Sell Orders */}
-                    <section>
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                Sellers
-                            </h2>
-                            <div className="text-xs text-foreground-dim">Showing lowest prices</div>
-                        </div>
-                        <div className="border border-border rounded-lg overflow-hidden">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-foreground/5 text-foreground-dim font-medium border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3">Price (ISK)</th>
-                                        <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location</th>
-                                        <th className="px-4 py-3 text-right">Duration (days)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {sellOrders.length === 0 ? (
-                                        <tr><td colSpan="4" className="px-4 py-4 text-center text-foreground-dim">No sell orders found or data syncing.</td></tr>
-                                    ) : sellOrders.map(order => (
-                                        <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
-                                            <td className="px-4 py-3 font-mono text-red-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
-                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-
-                    {/* Buy Orders */}
-                    <section>
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-bold flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                Buyers
-                            </h2>
-                            <div className="text-xs text-foreground-dim">Showing highest bids</div>
-                        </div>
-                        <div className="border border-border rounded-lg overflow-hidden">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-foreground/5 text-foreground-dim font-medium border-b border-border">
-                                    <tr>
-                                        <th className="px-4 py-3">Price (ISK)</th>
-                                        <th className="px-4 py-3 text-right">Quantity</th>
-                                        <th className="px-4 py-3">Location</th>
-                                        <th className="px-4 py-3 text-right">Duration (days)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                    {buyOrders.length === 0 ? (
-                                        <tr><td colSpan="4" className="px-4 py-4 text-center text-foreground-dim">No buy orders found or data syncing.</td></tr>
-                                    ) : buyOrders.map(order => (
-                                        <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
-                                            <td className="px-4 py-3 font-mono text-green-400">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-3 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
-                                            <td className="px-4 py-3 text-right text-foreground-dim">{order.duration}d</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-                </div>
-            </main>
+                </main>
+            </div>
         </div>
     )
 }
