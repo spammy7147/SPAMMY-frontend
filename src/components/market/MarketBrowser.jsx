@@ -232,10 +232,17 @@ export function MarketBrowser() {
                 <main className="flex-1 flex flex-col min-w-0 bg-background">
                     {/* Item Header */}
                     <header className="px-6 pt-6 border-b border-border">
-                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2">
-                            <span>Market Groups</span> 
-                            <span>/</span> 
-                            <span>{selectedItem.category || 'Category'}</span>
+                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2 flex-wrap">
+                            {selectedItem.categoryPath.length > 0 ? (
+                                selectedItem.categoryPath.map((catName, idx) => (
+                                    <span key={idx} className="flex items-center gap-2">
+                                        {idx > 0 && <span className="text-foreground-dim/40">/</span>}
+                                        <span>{catName}</span>
+                                    </span>
+                                ))
+                            ) : (
+                                <span>Category</span>
+                            )}
                         </div>
                         <div className="flex justify-between items-start">
                             <div className="flex gap-4 items-center">
