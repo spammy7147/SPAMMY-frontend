@@ -62,14 +62,15 @@ const formatExpiresIn = (issuedStr, durationDays) => {
 };
 
 // 트리 내에서 특정 Type ID 검색 헬퍼 (순수 함수 형태로 컴포넌트 외부에 정의하여 ESLint 에러 방지)
-const findTypeInTree = (nodes, id) => {
+const findTypeInTree = (nodes, id, currentPath = []) => {
     for (const node of nodes) {
+        const nodeName = node.nameEn || node.nameKo;
         if (node.types) {
             const t = node.types.find(x => x.id === id);
-            if (t) return { type: t, parentName: node.nameEn || node.nameKo };
+            if (t) return { type: t, categoryPath: [...currentPath, nodeName] };
         }
         if (node.subGroups) {
-            const found = findTypeInTree(node.subGroups, id);
+            const found = findTypeInTree(node.subGroups, id, [...currentPath, nodeName]);
             if (found) return found;
         }
     }
@@ -89,7 +90,7 @@ export function MarketBrowser() {
             return {
                 id: null,
                 name: 'Select an item',
-                category: '',
+                categoryPath: [],
                 description: '',
                 avgPrice: '0.00',
                 change: '0%'
@@ -100,7 +101,7 @@ export function MarketBrowser() {
             return {
                 id: found.type.id,
                 name: found.type.nameEn || found.type.nameKo,
-                category: found.parentName,
+                categoryPath: found.categoryPath,
                 description: '',
                 avgPrice: '0.00',
                 change: '0%'
@@ -109,7 +110,7 @@ export function MarketBrowser() {
         return {
             id: null,
             name: 'Select an item',
-            category: '',
+            categoryPath: [],
             description: '',
             avgPrice: '0.00',
             change: '0%'
