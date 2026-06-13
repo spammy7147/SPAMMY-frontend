@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
 
 function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
@@ -18,10 +17,7 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
         <div className="ml-2 mt-1">
             <button 
                 onClick={handleToggle}
-                className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm font-medium hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left",
-                    group.hasTypes ? "text-foreground-dim font-normal" : ""
-                )}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left"
             >
                 {expandedCats.includes(group.id) ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{group.nameEn || group.nameKo}</span>
@@ -33,7 +29,7 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
                             <button 
                                 key={`type-${child.id}`}
                                 onClick={() => onSelectType(child, group.nameEn || group.nameKo)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground-dim hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
                             >
                                 <span className="w-3 h-3 shrink-0"></span>
                                 <span className="truncate">{child.nameEn || child.nameKo}</span>
