@@ -84,7 +84,9 @@ export function MarketBrowser() {
 
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
-    
+    const [imgError, setImgError] = useState(false)
+    const [prevId, setPrevId] = useState(null)
+
     // Selected item state (URL과 categories로부터 유도된 상태로 관리하여 Cascading 렌더링 방지)
     const selectedItem = (() => {
         if (!typeId || categories.length === 0) {
@@ -117,6 +119,11 @@ export function MarketBrowser() {
             change: '0%'
         };
     })();
+
+    if (selectedItem.id !== prevId) {
+        setPrevId(selectedItem.id)
+        setImgError(false)
+    }
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
@@ -247,8 +254,17 @@ export function MarketBrowser() {
                         </div>
                         <div className="flex justify-between items-start">
                             <div className="flex gap-4 items-center">
-                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border">
-                                    <LayoutGrid className="w-7 h-7 text-foreground-dim" />
+                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border overflow-hidden shrink-0">
+                                    {selectedItem.id && !imgError ? (
+                                        <img 
+                                            src={`https://images.evetech.net/types/${selectedItem.id}/icon?size=64`}
+                                            alt={selectedItem.name}
+                                            className="w-full h-full object-contain"
+                                            onError={() => setImgError(true)}
+                                        />
+                                    ) : (
+                                        <LayoutGrid className="w-7 h-7 text-foreground-dim" />
+                                    )}
                                 </div>
                                 <h2 className="text-3xl font-bold">{selectedItem.name}</h2>
                             </div>
