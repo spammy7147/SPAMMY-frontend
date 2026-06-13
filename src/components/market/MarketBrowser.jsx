@@ -29,7 +29,7 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
                             <button 
                                 key={`type-${child.id}`}
                                 onClick={() => onSelectType(child, group.nameEn || group.nameKo)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground-dim hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
+                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
                             >
                                 <span className="w-3 h-3 shrink-0"></span>
                                 <span className="truncate">{child.nameEn || child.nameKo}</span>
