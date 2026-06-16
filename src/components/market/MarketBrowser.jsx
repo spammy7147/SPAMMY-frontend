@@ -107,13 +107,29 @@ const filterTree = (nodes, term) => {
         .filter(Boolean);
 };
 
+const ItemIcon = ({ typeId, name }) => {
+    const [imgError, setImgError] = useState(false);
+
+    if (!typeId || imgError) {
+        return <LayoutGrid className="w-7 h-7 text-foreground-dim" />;
+    }
+
+    return (
+        <img 
+            src={`https://images.evetech.net/types/${typeId}/icon?size=64`}
+            alt={name}
+            className="w-full h-full object-contain"
+            onError={() => setImgError(true)}
+        />
+    );
+};
+
 export function MarketBrowser() {
     const { regionId, typeId } = useParams();
     const navigate = useNavigate();
 
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
-    const [imgError, setImgError] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
 
     const filteredCategories = useMemo(() => {
@@ -153,9 +169,7 @@ export function MarketBrowser() {
         };
     })();
 
-    useEffect(() => {
-        setImgError(false);
-    }, [typeId]);
+
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
@@ -289,16 +303,7 @@ export function MarketBrowser() {
                         <div className="flex justify-between items-start">
                             <div className="flex gap-4 items-center">
                                 <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border overflow-hidden shrink-0">
-                                    {selectedItem.id && !imgError ? (
-                                        <img 
-                                            src={`https://images.evetech.net/types/${selectedItem.id}/icon?size=64`}
-                                            alt={selectedItem.name}
-                                            className="w-full h-full object-contain"
-                                            onError={() => setImgError(true)}
-                                        />
-                                    ) : (
-                                        <LayoutGrid className="w-7 h-7 text-foreground-dim" />
-                                    )}
+                                    <ItemIcon key={selectedItem.id} typeId={selectedItem.id} name={selectedItem.name} />
                                 </div>
                                 <h2 className="text-3xl font-bold">{selectedItem.name}</h2>
                             </div>
