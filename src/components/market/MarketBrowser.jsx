@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
@@ -13,16 +13,18 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
         ...(group.types || []).map(t => ({ ...t, isType: true }))
     ];
 
+    const isExpanded = expandedCats.includes(group.id) || group.isSearchResult;
+
     return (
         <div className="ml-2 mt-1">
             <button 
                 onClick={handleToggle}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left"
             >
-                {expandedCats.includes(group.id) ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{group.nameEn || group.nameKo}</span>
             </button>
-            {expandedCats.includes(group.id) && (
+            {isExpanded && (
                 <div className="pl-4">
                     {children.map(child => (
                         child.isType ? (
@@ -78,6 +80,33 @@ const findTypeInTree = (nodes, id, currentPath = []) => {
     return null;
 };
 
+const filterTree = (nodes, term) => {
+    if (!term) return nodes;
+    const lowerTerm = term.toLowerCase();
+    
+    return nodes
+        .map(node => {
+            const matchingTypes = (node.types || []).filter(t => 
+                (t.nameEn || t.nameKo || '').toLowerCase().includes(lowerTerm)
+            );
+            
+            const matchingSubGroups = node.subGroups ? filterTree(node.subGroups, term) : [];
+            
+            const nodeNameMatches = (node.nameEn || node.nameKo || '').toLowerCase().includes(lowerTerm);
+            
+            if (nodeNameMatches || matchingTypes.length > 0 || matchingSubGroups.length > 0) {
+                return {
+                    ...node,
+                    types: matchingTypes,
+                    subGroups: matchingSubGroups,
+                    isSearchResult: true
+                };
+            }
+            return null;
+        })
+        .filter(Boolean);
+};
+
 export function MarketBrowser() {
     const { regionId, typeId } = useParams();
     const navigate = useNavigate();
@@ -85,7 +114,11 @@ export function MarketBrowser() {
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
     const [imgError, setImgError] = useState(false)
-    const [prevId, setPrevId] = useState(null)
+    const [searchTerm, setSearchTerm] = useState('')
+
+    const filteredCategories = useMemo(() => {
+        return filterTree(categories, searchTerm);
+    }, [categories, searchTerm]);
 
     // Selected item state (URL과 categories로부터 유도된 상태로 관리하여 Cascading 렌더링 방지)
     const selectedItem = (() => {
@@ -120,10 +153,9 @@ export function MarketBrowser() {
         };
     })();
 
-    if (selectedItem.id !== prevId) {
-        setPrevId(selectedItem.id)
-        setImgError(false)
-    }
+    useEffect(() => {
+        setImgError(false);
+    }, [typeId]);
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
@@ -219,12 +251,14 @@ export function MarketBrowser() {
                             <input 
                                 type="text" 
                                 placeholder="Search..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full bg-background border border-border rounded-sm pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
                             />
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                    {categories.map(cat => (
+                    {filteredCategories.map(cat => (
                         <MarketGroupTree 
                             key={cat.id} 
                             group={cat} 
