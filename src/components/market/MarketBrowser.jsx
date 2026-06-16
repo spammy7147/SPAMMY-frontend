@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
@@ -13,16 +13,18 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
         ...(group.types || []).map(t => ({ ...t, isType: true }))
     ];
 
+    const isExpanded = expandedCats.includes(group.id) || group.isSearchResult;
+
     return (
         <div className="ml-2 mt-1">
             <button 
                 onClick={handleToggle}
                 className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left"
             >
-                {expandedCats.includes(group.id) ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{group.nameEn || group.nameKo}</span>
             </button>
-            {expandedCats.includes(group.id) && (
+            {isExpanded && (
                 <div className="pl-4">
                     {children.map(child => (
                         child.isType ? (
@@ -31,7 +33,12 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
                                 onClick={() => onSelectType(child, group.nameEn || group.nameKo)}
                                 className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
                             >
-                                <span className="w-3 h-3 shrink-0"></span>
+                                <img
+                                    src={`https://images.evetech.net/types/${child.id}/icon?size=32`}
+                                    alt=""
+                                    className="w-5 h-5 shrink-0 rounded bg-muted/20 object-contain"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
                                 <span className="truncate">{child.nameEn || child.nameKo}</span>
                             </button>
                         ) : (
@@ -58,18 +65,46 @@ const formatExpiresIn = (issuedStr, durationDays) => {
 };
 
 // 트리 내에서 특정 Type ID 검색 헬퍼 (순수 함수 형태로 컴포넌트 외부에 정의하여 ESLint 에러 방지)
-const findTypeInTree = (nodes, id) => {
+const findTypeInTree = (nodes, id, currentPath = []) => {
     for (const node of nodes) {
+        const nodeName = node.nameEn || node.nameKo;
         if (node.types) {
             const t = node.types.find(x => x.id === id);
-            if (t) return { type: t, parentName: node.nameEn || node.nameKo };
+            if (t) return { type: t, categoryPath: [...currentPath, nodeName] };
         }
         if (node.subGroups) {
-            const found = findTypeInTree(node.subGroups, id);
+            const found = findTypeInTree(node.subGroups, id, [...currentPath, nodeName]);
             if (found) return found;
         }
     }
     return null;
+};
+
+const filterTree = (nodes, term) => {
+    if (!term) return nodes;
+    const lowerTerm = term.toLowerCase();
+    
+    return nodes
+        .map(node => {
+            const matchingTypes = (node.types || []).filter(t => 
+                (t.nameEn || t.nameKo || '').toLowerCase().includes(lowerTerm)
+            );
+            
+            const matchingSubGroups = node.subGroups ? filterTree(node.subGroups, term) : [];
+            
+            const nodeNameMatches = (node.nameEn || node.nameKo || '').toLowerCase().includes(lowerTerm);
+            
+            if (nodeNameMatches || matchingTypes.length > 0 || matchingSubGroups.length > 0) {
+                return {
+                    ...node,
+                    types: matchingTypes,
+                    subGroups: matchingSubGroups,
+                    isSearchResult: true
+                };
+            }
+            return null;
+        })
+        .filter(Boolean);
 };
 
 export function MarketBrowser() {
@@ -78,14 +113,20 @@ export function MarketBrowser() {
 
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
-    
+    const [imgError, setImgError] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
+
+    const filteredCategories = useMemo(() => {
+        return filterTree(categories, searchTerm);
+    }, [categories, searchTerm]);
+
     // Selected item state (URL과 categories로부터 유도된 상태로 관리하여 Cascading 렌더링 방지)
     const selectedItem = (() => {
         if (!typeId || categories.length === 0) {
             return {
                 id: null,
                 name: 'Select an item',
-                category: '',
+                categoryPath: [],
                 description: '',
                 avgPrice: '0.00',
                 change: '0%'
@@ -96,7 +137,7 @@ export function MarketBrowser() {
             return {
                 id: found.type.id,
                 name: found.type.nameEn || found.type.nameKo,
-                category: found.parentName,
+                categoryPath: found.categoryPath,
                 description: '',
                 avgPrice: '0.00',
                 change: '0%'
@@ -105,12 +146,16 @@ export function MarketBrowser() {
         return {
             id: null,
             name: 'Select an item',
-            category: '',
+            categoryPath: [],
             description: '',
             avgPrice: '0.00',
             change: '0%'
         };
     })();
+
+    useEffect(() => {
+        setImgError(false);
+    }, [typeId]);
 
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
@@ -206,12 +251,14 @@ export function MarketBrowser() {
                             <input 
                                 type="text" 
                                 placeholder="Search..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full bg-background border border-border rounded-sm pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
                             />
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-                    {categories.map(cat => (
+                    {filteredCategories.map(cat => (
                         <MarketGroupTree 
                             key={cat.id} 
                             group={cat} 
@@ -227,15 +274,31 @@ export function MarketBrowser() {
                 <main className="flex-1 flex flex-col min-w-0 bg-background">
                     {/* Item Header */}
                     <header className="px-6 pt-6 border-b border-border">
-                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2">
-                            <span>Market Groups</span> 
-                            <span>/</span> 
-                            <span>{selectedItem.category || 'Category'}</span>
+                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2 flex-wrap">
+                            {selectedItem.categoryPath.length > 0 ? (
+                                selectedItem.categoryPath.map((catName, idx) => (
+                                    <span key={idx} className="flex items-center gap-2">
+                                        {idx > 0 && <span className="text-foreground-dim/40">/</span>}
+                                        <span>{catName}</span>
+                                    </span>
+                                ))
+                            ) : (
+                                <span>Category</span>
+                            )}
                         </div>
                         <div className="flex justify-between items-start">
                             <div className="flex gap-4 items-center">
-                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border">
-                                    <LayoutGrid className="w-7 h-7 text-foreground-dim" />
+                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border overflow-hidden shrink-0">
+                                    {selectedItem.id && !imgError ? (
+                                        <img 
+                                            src={`https://images.evetech.net/types/${selectedItem.id}/icon?size=64`}
+                                            alt={selectedItem.name}
+                                            className="w-full h-full object-contain"
+                                            onError={() => setImgError(true)}
+                                        />
+                                    ) : (
+                                        <LayoutGrid className="w-7 h-7 text-foreground-dim" />
+                                    )}
                                 </div>
                                 <h2 className="text-3xl font-bold">{selectedItem.name}</h2>
                             </div>
