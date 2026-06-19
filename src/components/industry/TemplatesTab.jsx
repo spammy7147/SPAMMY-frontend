@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { cn } from '@/lib/utils'
 import { industryApi } from '@/services/industryApi'
 
 const decisions = [
@@ -7,82 +8,366 @@ const decisions = [
     { label: '구매', value: 'PURCHASE' },
 ]
 
+const facilityRows = [
+    { id: 'manufacturing', label: 'Manufacturing', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+    { id: 'component', label: 'Component', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+    { id: 'reaction', label: 'Reaction', defaultStructure: 'Refinery I', defaultBonus: '2.2', defaultCost: '', defaultTax: '10' },
+    { id: 'fuel', label: 'Fuel', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+]
+
 function countNodes(template) {
-    return (template.targets || []).reduce((total, target) => total + (target.nodes || []).length, 0)
+    return (template.nodes || []).length
 }
 
-function buildTemplatePayload(form) {
-    const typeId = Number(form.typeId)
-    const quantity = Number(form.quantity)
-    const nodeKey = `target-${typeId}`
+function initialFacilityState() {
+    return Object.fromEntries(
+        facilityRows.map((row) => [
+            row.id,
+            {
+                index: '0.14',
+                structure: row.defaultStructure,
+                bonus: row.defaultBonus,
+                cost: row.defaultCost,
+                tax: row.defaultTax,
+            },
+        ]),
+    )
+}
+
+function flattenBom(node, decisionsByNodeKey, parentNodeKey = null) {
+    if (!node) return []
+
+    return [
+        {
+            nodeKey: node.nodeKey,
+            parentNodeKey,
+            typeId: node.typeId,
+            typeName: node.typeName,
+            quantity: node.quantity,
+            runsPerJob: node.runsPerJob || 1,
+            decision: decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO',
+            facilityPresetId: null,
+            materialEfficiency: null,
+            timeEfficiency: null,
+        },
+        ...(node.children || []).flatMap((child) => flattenBom(child, decisionsByNodeKey, node.nodeKey)),
+    ]
+}
+
+function groupByDepth(node, depth = 0, columns = []) {
+    if (!node) return columns
+    if (!columns[depth]) columns[depth] = []
+    columns[depth].push(node)
+    ;(node.children || []).forEach((child) => groupByDepth(child, depth + 1, columns))
+    return columns
+}
+
+function aggregateLeaves(node, result = new Map()) {
+    if (!node) return result
+    const children = node.children || []
+    if (children.length === 0) {
+        const current = result.get(node.typeId) || { typeId: node.typeId, typeName: node.typeName, quantity: 0 }
+        current.quantity += Number(node.quantity || 0)
+        result.set(node.typeId, current)
+        return result
+    }
+    children.forEach((child) => aggregateLeaves(child, result))
+    return result
+}
+
+function number(value) {
+    return Number(value || 0).toLocaleString()
+}
+
+function buildTemplatePayload(editor, bomTree, decisionsByNodeKey) {
+    const nodes = flattenBom(bomTree, decisionsByNodeKey)
+    const target = nodes[0]
 
     return {
-        name: form.name.trim(),
-        description: form.description.trim() || null,
+        name: editor.name.trim(),
+        description: editor.description.trim() || null,
         targets: [
             {
-                typeId,
-                typeName: form.typeName.trim(),
-                quantity,
+                typeId: target.typeId,
+                typeName: target.typeName,
+                quantity: target.quantity,
             },
         ],
-        nodes: [
-            {
-                nodeKey,
-                parentNodeKey: null,
-                typeId,
-                typeName: form.typeName.trim(),
-                quantity,
-                runsPerJob: 1,
-                decision: form.decision,
-                facilityPresetId: null,
-                materialEfficiency: null,
-                timeEfficiency: null,
-            },
-        ],
+        nodes,
     }
 }
 
+function FacilitySettings({ facilities, onChange }) {
+    return (
+        <div className="bg-card border border-border rounded overflow-hidden">
+            {facilityRows.map((row) => {
+                const values = facilities[row.id]
+                return (
+                    <div key={row.id} className="grid grid-cols-[120px_90px_minmax(120px,1fr)_110px_90px_90px] gap-2 items-center px-3 py-2 border-b border-border last:border-b-0 text-[12px] max-xl:grid-cols-2">
+                        <div className="text-foreground font-extrabold">{row.label}</div>
+                        <label className="flex items-center gap-1">
+                            <span className="text-foreground-dim text-[10px]">Index</span>
+                            <input
+                                value={values.index}
+                                onChange={(event) => onChange(row.id, 'index', event.target.value)}
+                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
+                            />
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <span className="text-foreground-dim text-[10px]">Structure</span>
+                            <select
+                                value={values.structure}
+                                onChange={(event) => onChange(row.id, 'structure', event.target.value)}
+                                className="w-full bg-muted border border-border text-foreground px-2 py-1 rounded-[3px] outline-none"
+                            >
+                                <option>Raitaru I</option>
+                                <option>Azbel I</option>
+                                <option>Sotiyo I</option>
+                                <option>Refinery I</option>
+                                <option>NPC Station</option>
+                            </select>
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <span className="text-foreground-dim text-[10px]">Bonus</span>
+                            <input
+                                value={values.bonus}
+                                onChange={(event) => onChange(row.id, 'bonus', event.target.value)}
+                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
+                            />
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <span className="text-foreground-dim text-[10px]">Cost</span>
+                            <input
+                                value={values.cost}
+                                onChange={(event) => onChange(row.id, 'cost', event.target.value)}
+                                className="w-full bg-foreground-dim/20 border border-border text-foreground px-2 py-1 rounded-[3px] outline-none"
+                            />
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <span className="text-foreground-dim text-[10px]">Tax</span>
+                            <input
+                                value={values.tax}
+                                onChange={(event) => onChange(row.id, 'tax', event.target.value)}
+                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
+                            />
+                        </label>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
+function DecisionButtons({ value, onChange }) {
+    return (
+        <div className="grid grid-cols-3 gap-1">
+            {decisions.map((decision) => (
+                <button
+                    key={decision.value}
+                    type="button"
+                    onClick={() => onChange(decision.value)}
+                    className={cn(
+                        'border text-[10px] px-1.5 py-1 rounded-[2px] cursor-pointer font-bold transition-colors',
+                        value === decision.value
+                            ? 'bg-secondary/20 border-secondary text-secondary'
+                            : 'bg-transparent border-border text-foreground-dim hover:text-foreground-muted',
+                    )}
+                >
+                    {decision.label}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+function BomCard({ node, decision, onDecisionChange }) {
+    return (
+        <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[190px]">
+            <div className="bg-muted px-3 py-2 border-b border-border">
+                <div className="text-[12px] text-foreground font-bold truncate">{node.typeName}</div>
+                <div className="text-[10px] text-foreground-dim font-mono">type {node.typeId}</div>
+            </div>
+            <div className="p-3 flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                        <div className="text-foreground-dim">Qty</div>
+                        <div className="text-foreground font-bold font-mono">{number(node.quantity)}</div>
+                    </div>
+                    <div>
+                        <div className="text-foreground-dim">Runs</div>
+                        <div className="text-foreground-muted font-bold font-mono">{number(node.runsPerJob)}</div>
+                    </div>
+                </div>
+                <DecisionButtons value={decision} onChange={onDecisionChange} />
+            </div>
+        </div>
+    )
+}
+
+function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
+    if (!bomTree) {
+        return (
+            <div className="bg-card border border-border rounded p-12 text-center text-foreground-dim">
+                NO CALCULATION
+            </div>
+        )
+    }
+
+    const columns = groupByDepth(bomTree)
+
+    return (
+        <div className="bg-background/40 border border-border rounded overflow-x-auto">
+            <div className="flex gap-2 p-3 min-w-max">
+                {columns.map((nodes, depth) => (
+                    <div key={depth} className="flex flex-col gap-2 w-[220px]">
+                        <div className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold px-1">
+                            Tier {depth}
+                        </div>
+                        {nodes.map((node) => (
+                            <BomCard
+                                key={node.nodeKey}
+                                node={node}
+                                decision={decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO'}
+                                onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
+                            />
+                        ))}
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+function MaterialsSummary({ bomTree }) {
+    const materials = useMemo(() => Array.from(aggregateLeaves(bomTree).values()), [bomTree])
+
+    return (
+        <div className="bg-card border border-border rounded overflow-hidden">
+            <div className="p-3 bg-muted border-b border-border flex items-center justify-between">
+                <div className="text-[11px] text-foreground-dim uppercase tracking-wider font-bold">Materials</div>
+                <div className="text-[11px] text-foreground-muted font-bold">{materials.length} items</div>
+            </div>
+            <div className="max-h-[520px] overflow-y-auto">
+                {materials.length > 0 ? materials.map((material) => (
+                    <div key={material.typeId} className="grid grid-cols-[minmax(0,1fr)_90px] gap-2 px-3 py-2 border-b border-border last:border-b-0 text-[12px]">
+                        <div className="text-foreground-muted truncate">{material.typeName}</div>
+                        <div className="text-right text-foreground font-mono font-bold">{number(material.quantity)}</div>
+                    </div>
+                )) : (
+                    <div className="p-8 text-center text-foreground-dim text-[12px]">NO MATERIALS</div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+function TemplatesList({ templates }) {
+    return (
+        <div className="bg-card border border-border rounded overflow-hidden">
+            <table className="w-full border-collapse text-[13px]">
+                <thead>
+                    <tr className="bg-muted border-b border-border">
+                        <th className="px-3 py-2.5 text-left text-[9px] text-foreground-dim uppercase tracking-wider">Template</th>
+                        <th className="px-3 py-2.5 text-right text-[9px] text-foreground-dim uppercase tracking-wider">Targets</th>
+                        <th className="px-3 py-2.5 text-right text-[9px] text-foreground-dim uppercase tracking-wider">Nodes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {templates.length > 0 ? templates.map((template) => (
+                        <tr key={template.id} className="border-b border-border bg-card hover:bg-border/5 transition-colors">
+                            <td className="px-3 py-2.5">
+                                <div className="text-foreground font-semibold">{template.name}</div>
+                                {template.description && (
+                                    <div className="text-[10px] text-foreground-dim mt-0.5 truncate max-w-[520px]">
+                                        {template.description}
+                                    </div>
+                                )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-foreground font-bold">
+                                {(template.targets || []).length.toLocaleString()}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-foreground-muted">
+                                {countNodes(template).toLocaleString()}
+                            </td>
+                        </tr>
+                    )) : (
+                        <tr>
+                            <td colSpan="3" className="text-center py-14 text-foreground-dim font-mono tracking-[2px]">
+                                NO INDUSTRY TEMPLATES
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    )
+}
+
 export function TemplatesTab({ templates, onTemplateCreated }) {
-    const [form, setForm] = useState({
+    const [editor, setEditor] = useState({
         name: '',
         description: '',
         typeId: '',
         typeName: '',
         quantity: '1',
-        decision: 'AUTO',
+        me: '10',
+        system: '',
+        defaultDecision: 'AUTO',
     })
+    const [facilities, setFacilities] = useState(initialFacilityState)
+    const [bomTree, setBomTree] = useState(null)
+    const [decisionsByNodeKey, setDecisionsByNodeKey] = useState({})
+    const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
 
-    const updateField = (field) => (event) => {
-        setForm((current) => ({ ...current, [field]: event.target.value }))
+    const updateEditor = (field) => (event) => {
+        setEditor((current) => ({ ...current, [field]: event.target.value }))
     }
 
-    const isValid =
-        form.name.trim() &&
-        form.typeName.trim() &&
-        Number(form.typeId) > 0 &&
-        Number(form.quantity) > 0
+    const updateFacility = (section, field, value) => {
+        setFacilities((current) => ({
+            ...current,
+            [section]: {
+                ...current[section],
+                [field]: value,
+            },
+        }))
+    }
 
-    const createTemplate = async (event) => {
+    const canCalculate = Number(editor.typeId) > 0 && Number(editor.quantity) > 0
+    const canSave = bomTree && editor.name.trim() && editor.typeName.trim()
+
+    const calculate = async (event) => {
         event.preventDefault()
-        if (!isValid || saving) return
+        if (!canCalculate || calculating) return
+
+        setCalculating(true)
+        setError(null)
+        try {
+            const tree = await industryApi.manufacturingBom(Number(editor.typeId), Number(editor.quantity))
+            setBomTree(tree)
+            setEditor((current) => ({ ...current, typeName: current.typeName || tree.typeName }))
+            setDecisionsByNodeKey(
+                Object.fromEntries(flattenBom(tree, {}).map((node) => [node.nodeKey, editor.defaultDecision])),
+            )
+        } catch (err) {
+            setError(err.message)
+        } finally {
+            setCalculating(false)
+        }
+    }
+
+    const saveTemplate = async () => {
+        if (!canSave || saving) return
 
         setSaving(true)
         setError(null)
-
         try {
-            const created = await industryApi.createTemplate(buildTemplatePayload(form))
+            const payload = buildTemplatePayload(editor, bomTree, decisionsByNodeKey)
+            const created = await industryApi.createTemplate(payload)
             onTemplateCreated(created)
-            setForm({
-                name: '',
-                description: '',
-                typeId: '',
-                typeName: '',
-                quantity: '1',
-                decision: 'AUTO',
-            })
+            setEditor((current) => ({ ...current, name: '', description: '' }))
         } catch (err) {
             setError(err.message)
         } finally {
@@ -90,155 +375,114 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }
     }
 
-    return (
-        <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-4 max-xl:grid-cols-1">
-            <div className="bg-card border border-border rounded overflow-hidden">
-                <table className="w-full border-collapse text-[13px]">
-                    <thead>
-                        <tr className="bg-muted border-b border-border">
-                            <th className="px-3 py-2.5 text-left text-[9px] text-foreground-dim uppercase tracking-wider">Template</th>
-                            <th className="px-3 py-2.5 text-right text-[9px] text-foreground-dim uppercase tracking-wider">Targets</th>
-                            <th className="px-3 py-2.5 text-right text-[9px] text-foreground-dim uppercase tracking-wider">Nodes</th>
-                            <th className="px-3 py-2.5 text-left text-[9px] text-foreground-dim uppercase tracking-wider">Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {templates.length > 0 ? templates.map((template) => (
-                            <tr key={template.id} className="border-b border-border bg-card hover:bg-border/5 transition-colors">
-                                <td className="px-3 py-2.5">
-                                    <div className="text-foreground font-semibold">{template.name}</div>
-                                    {template.description && (
-                                        <div className="text-[10px] text-foreground-dim mt-0.5 truncate max-w-[520px]">
-                                            {template.description}
-                                        </div>
-                                    )}
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-foreground font-bold">
-                                    {(template.targets || []).length.toLocaleString()}
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-foreground-muted">
-                                    {countNodes(template).toLocaleString()}
-                                </td>
-                                <td className="px-3 py-2.5 text-foreground-dim text-[11px]">
-                                    {template.updatedAt || '-'}
-                                </td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan="4" className="text-center py-20 text-foreground-dim font-mono tracking-[2px]">
-                                    NO INDUSTRY TEMPLATES
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+    const setNodeDecision = (nodeKey, decision) => {
+        setDecisionsByNodeKey((current) => ({ ...current, [nodeKey]: decision }))
+    }
 
-            <form onSubmit={createTemplate} className="bg-card border border-border rounded overflow-hidden">
-                <div className="p-4 bg-muted border-b border-border">
-                    <div className="text-[11px] text-foreground-dim uppercase tracking-wider font-bold">New Template</div>
-                    <div className="text-sm text-foreground font-bold mt-1">기본 생산 설계 생성</div>
-                </div>
-                <div className="p-4 flex flex-col gap-3">
-                    <label className="flex flex-col gap-1">
-                        <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Name</span>
-                        <input
-                            value={form.name}
-                            onChange={updateField('name')}
-                            className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                            placeholder="예: Vargur 10 runs"
-                        />
-                    </label>
-                    <label className="flex flex-col gap-1">
-                        <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Description</span>
-                        <textarea
-                            value={form.description}
-                            onChange={updateField('description')}
-                            className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none min-h-[72px] resize-y"
-                            placeholder="용도나 생산 기준을 적어둡니다."
-                        />
-                    </label>
-                    <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
-                        <label className="flex flex-col gap-1">
-                            <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Type ID</span>
-                            <input
-                                type="number"
-                                min="1"
-                                value={form.typeId}
-                                onChange={updateField('typeId')}
-                                className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                                placeholder="17738"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                            <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Target</span>
-                            <input
-                                value={form.typeName}
-                                onChange={updateField('typeName')}
-                                className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                                placeholder="Vargur"
-                            />
-                        </label>
-                    </div>
-                    <label className="flex flex-col gap-1">
-                        <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Runs / Quantity</span>
+    return (
+        <div className="flex flex-col gap-4">
+            <form onSubmit={calculate} className="bg-card border border-border rounded overflow-hidden">
+                <div className="grid grid-cols-[90px_minmax(160px,1fr)_90px_90px_120px_minmax(140px,1fr)_160px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                    <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Blueprint</div>
+                    <input
+                        value={editor.typeName}
+                        onChange={updateEditor('typeName')}
+                        className="bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                        placeholder="Jackdaw"
+                    />
+                    <label className="flex items-center gap-1">
+                        <span className="text-foreground text-[12px] font-bold">Run</span>
                         <input
                             type="number"
                             min="1"
-                            value={form.quantity}
-                            onChange={updateField('quantity')}
-                            className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                            value={editor.quantity}
+                            onChange={updateEditor('quantity')}
+                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
                         />
                     </label>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">Default Decision</span>
-                        <div className="grid grid-cols-3 gap-1 bg-muted p-1 rounded">
-                            {decisions.map((decision) => (
-                                <button
-                                    key={decision.value}
-                                    type="button"
-                                    onClick={() => setForm((current) => ({ ...current, decision: decision.value }))}
-                                    className={`border-none text-[11px] px-2 py-1.5 rounded-[3px] cursor-pointer font-bold transition-all ${
-                                        form.decision === decision.value
-                                            ? 'bg-border-hover text-foreground'
-                                            : 'bg-transparent text-foreground-dim hover:text-foreground-muted'
-                                    }`}
-                                >
-                                    {decision.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        {decisions.map((decision) => (
-                        <button
-                            key={decision.value}
-                            type="button"
-                            disabled
-                            className="flex items-center justify-between bg-muted border border-border rounded-[3px] px-3 py-2 text-left cursor-not-allowed"
-                        >
-                            <span className="text-sm text-foreground-muted font-bold">{decision.label}</span>
-                            <span className="text-[10px] text-foreground-dim font-mono">{decision.value}</span>
-                            </button>
-                        ))}
-                    </div>
-                    {error && (
-                        <div className="text-destructive text-[11px] leading-relaxed font-bold">
-                            {error}
-                        </div>
-                    )}
+                    <label className="flex items-center gap-1">
+                        <span className="text-foreground text-[12px] font-bold">ME</span>
+                        <input
+                            type="number"
+                            value={editor.me}
+                            onChange={updateEditor('me')}
+                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
+                        />
+                    </label>
+                    <label className="flex items-center gap-1">
+                        <span className="text-foreground text-[12px] font-bold">Type ID</span>
+                        <input
+                            type="number"
+                            min="1"
+                            value={editor.typeId}
+                            onChange={updateEditor('typeId')}
+                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
+                            placeholder="34828"
+                        />
+                    </label>
+                    <input
+                        value={editor.system}
+                        onChange={updateEditor('system')}
+                        className="bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                        placeholder="System"
+                    />
                     <button
                         type="submit"
-                        disabled={!isValid || saving}
-                        className="bg-primary border border-primary text-background px-3 py-2 rounded text-xs font-extrabold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={!canCalculate || calculating}
+                        className="bg-primary border border-primary text-background px-4 py-2 rounded text-sm font-extrabold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        {saving ? 'Saving...' : 'Create Template'}
+                        {calculating ? 'Calculating...' : 'Calculate'}
                     </button>
-                    <div className="text-[11px] text-foreground-dim leading-relaxed">
-                        생성 시 최종 생산품을 루트 노드로 저장합니다. 세부 BOM 결정값 편집은 다음 단계에서 확장합니다.
-                    </div>
                 </div>
+                <div className="grid grid-cols-[140px_minmax(0,1fr)_220px] gap-3 items-center px-3 py-2 border-b border-border max-xl:grid-cols-1">
+                    <input
+                        value={editor.name}
+                        onChange={updateEditor('name')}
+                        className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                        placeholder="Template name"
+                    />
+                    <input
+                        value={editor.description}
+                        onChange={updateEditor('description')}
+                        className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                        placeholder="Description"
+                    />
+                    <DecisionButtons
+                        value={editor.defaultDecision}
+                        onChange={(decision) => setEditor((current) => ({ ...current, defaultDecision: decision }))}
+                    />
+                </div>
+                <FacilitySettings facilities={facilities} onChange={updateFacility} />
             </form>
+
+            {error && (
+                <div className="bg-card border border-destructive/50 rounded px-4 py-3 text-destructive text-sm">
+                    {error}
+                </div>
+            )}
+
+            <div className="grid grid-cols-[280px_minmax(0,1fr)] gap-4 max-xl:grid-cols-1">
+                <MaterialsSummary bomTree={bomTree} />
+                <div className="flex flex-col gap-3">
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={saveTemplate}
+                            disabled={!canSave || saving}
+                            className="bg-secondary border border-secondary text-background px-4 py-2 rounded text-xs font-extrabold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {saving ? 'Saving...' : 'Save Template'}
+                        </button>
+                    </div>
+                    <BomTree
+                        bomTree={bomTree}
+                        decisionsByNodeKey={decisionsByNodeKey}
+                        onDecisionChange={setNodeDecision}
+                    />
+                </div>
+            </div>
+
+            <TemplatesList templates={templates} />
         </div>
     )
 }

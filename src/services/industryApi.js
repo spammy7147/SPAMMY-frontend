@@ -2,6 +2,9 @@ import { fetchApi } from './api'
 
 export const industryApi = {
     templates: () => fetchApi('/api/industry/templates'),
+    manufacturingBom: (targetTypeId, quantity) => fetchApi(
+        `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
+    ),
     createTemplate: (payload) => fetchApi('/api/industry/templates', {
         method: 'POST',
         body: JSON.stringify(payload),
