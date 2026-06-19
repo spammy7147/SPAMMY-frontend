@@ -5,6 +5,7 @@ import AssetsPage from './pages/AssetsPage'
 import MissionsPage from './pages/MissionsPage'
 import MarketPage from './pages/MarketPage'
 import SettingsPage from './pages/SettingsPage'
+import IndustryPage from './pages/IndustryPage'
 import AppLayout from './components/layout/AppLayout'
 import { AuthProvider, useAuth } from './store/AuthContext'
 import { ThemeProvider } from './store/ThemeContext'
@@ -40,6 +41,7 @@ function App() {
                                 <Route path="/missions" element={<MissionsPage />} />
                                 <Route path="/market" element={<MarketPage />} />
                                 <Route path="/market/region/:regionId/type/:typeId" element={<MarketPage />} />
+                                <Route path="/industry" element={<IndustryPage />} />
                                 <Route path="/settings" element={<SettingsPage />} />
                             </Route>
                             
