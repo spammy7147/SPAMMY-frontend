@@ -13,6 +13,7 @@ export function Navbar() {
         { label: 'Assets', path: '/inventory' },
         { label: 'Missions', path: '/missions' },
         { label: 'Market', path: '/market' },
+        { label: 'Industry', path: '/industry' },
     ]
 
     const isActive = (path) => location.pathname === path
