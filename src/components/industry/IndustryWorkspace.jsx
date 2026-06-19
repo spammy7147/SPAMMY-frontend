@@ -44,6 +44,10 @@ export function IndustryWorkspace() {
         }
     }, [])
 
+    const handleTemplateCreated = (template) => {
+        setTemplates((current) => [template, ...current])
+    }
+
     if (loading) {
         return (
             <div className="text-center py-12 text-foreground-dim tracking-[2px]">
@@ -64,7 +68,9 @@ export function IndustryWorkspace() {
         <>
             <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
-                {activeTab === 'templates' && <TemplatesTab templates={templates} />}
+                {activeTab === 'templates' && (
+                    <TemplatesTab templates={templates} onTemplateCreated={handleTemplateCreated} />
+                )}
                 {activeTab === 'runs' && (
                     <RunsTab runs={runs} selectedRun={selectedRun} onSelectRun={setSelectedRun} />
                 )}
