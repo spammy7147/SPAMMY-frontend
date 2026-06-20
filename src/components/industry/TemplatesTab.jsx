@@ -518,7 +518,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         let mounted = true
         const timer = setTimeout(() => {
             setSystemSearching(true)
-            industryApi.systems(query, 20)
+            industryApi.systems(query, 10000)
                 .then((results) => {
                     if (mounted) setSystemResults(results || [])
                 })
