@@ -196,7 +196,7 @@ function BlueprintSearchInput({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                placeholder="Jackdaw Blueprint"
+                placeholder="Jackdaw"
             />
             {searching && (
                 <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
@@ -213,10 +213,10 @@ function BlueprintSearchInput({
                             className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
                         >
                             <div className="text-[12px] text-foreground font-bold">
-                                {blueprint.blueprintName}
+                                {blueprint.productTypeName}
                             </div>
                             <div className="text-[10px] text-foreground-dim">
-                                Product: {blueprint.productTypeName} · type {blueprint.productTypeId}
+                                type {blueprint.productTypeId}
                             </div>
                         </button>
                     ))}
@@ -224,7 +224,7 @@ function BlueprintSearchInput({
             )}
             {selectedBlueprint && (
                 <div className="mt-1 text-[10px] text-secondary font-bold">
-                    {selectedBlueprint.productTypeName} selected from {selectedBlueprint.blueprintName}
+                    Selected: {selectedBlueprint.productTypeName}
                 </div>
             )}
         </div>
@@ -426,7 +426,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setBlueprintResults([])
         setEditor((current) => ({
             ...current,
-            blueprintQuery: blueprint.blueprintName,
+            blueprintQuery: blueprint.productTypeName,
             typeId: String(blueprint.productTypeId),
             typeName: blueprint.productTypeName,
             name: current.name || `${blueprint.productTypeName} ${current.quantity} runs`,
@@ -491,7 +491,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded overflow-hidden">
                 <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_180px_minmax(140px,1fr)_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
-                    <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Blueprint</div>
+                    <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
                         results={blueprintResults}
