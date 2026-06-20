@@ -2,6 +2,9 @@ import { fetchApi } from './api'
 
 export const industryApi = {
     templates: () => fetchApi('/api/industry/templates'),
+    manufacturingBlueprints: (query, limit = 10) => fetchApi(
+        `/api/industry/blueprints/manufacturing?query=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
     manufacturingBom: (targetTypeId, quantity) => fetchApi(
         `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
     ),

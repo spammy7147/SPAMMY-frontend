@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { industryApi } from '@/services/industryApi'
 
@@ -180,6 +180,57 @@ function DecisionButtons({ value, onChange }) {
     )
 }
 
+function BlueprintSearchInput({
+    query,
+    results,
+    searching,
+    selectedBlueprint,
+    onQueryChange,
+    onSelect,
+}) {
+    const showResults = query.trim().length >= 2 && results.length > 0
+
+    return (
+        <div className="relative">
+            <input
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                placeholder="Jackdaw Blueprint"
+            />
+            {searching && (
+                <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
+                    SEARCH
+                </div>
+            )}
+            {showResults && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded overflow-hidden shadow-xl">
+                    {results.map((blueprint) => (
+                        <button
+                            key={`${blueprint.blueprintTypeId}-${blueprint.productTypeId}`}
+                            type="button"
+                            onClick={() => onSelect(blueprint)}
+                            className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
+                        >
+                            <div className="text-[12px] text-foreground font-bold">
+                                {blueprint.blueprintName}
+                            </div>
+                            <div className="text-[10px] text-foreground-dim">
+                                Product: {blueprint.productTypeName} · type {blueprint.productTypeId}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            )}
+            {selectedBlueprint && (
+                <div className="mt-1 text-[10px] text-secondary font-bold">
+                    {selectedBlueprint.productTypeName} selected from {selectedBlueprint.blueprintName}
+                </div>
+            )}
+        </div>
+    )
+}
+
 function BomCard({ node, decision, onDecisionChange }) {
     return (
         <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[190px]">
@@ -307,6 +358,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [editor, setEditor] = useState({
         name: '',
         description: '',
+        blueprintQuery: '',
         typeId: '',
         typeName: '',
         quantity: '1',
@@ -317,12 +369,68 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [facilities, setFacilities] = useState(initialFacilityState)
     const [bomTree, setBomTree] = useState(null)
     const [decisionsByNodeKey, setDecisionsByNodeKey] = useState({})
+    const [blueprintResults, setBlueprintResults] = useState([])
+    const [selectedBlueprint, setSelectedBlueprint] = useState(null)
+    const [blueprintSearching, setBlueprintSearching] = useState(false)
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
 
     const updateEditor = (field) => (event) => {
         setEditor((current) => ({ ...current, [field]: event.target.value }))
+    }
+
+    useEffect(() => {
+        const query = editor.blueprintQuery.trim()
+        if (query.length < 2) {
+            setBlueprintResults([])
+            setBlueprintSearching(false)
+            return undefined
+        }
+
+        let mounted = true
+        const timer = setTimeout(() => {
+            setBlueprintSearching(true)
+            industryApi.manufacturingBlueprints(query)
+                .then((results) => {
+                    if (mounted) setBlueprintResults(results || [])
+                })
+                .catch(() => {
+                    if (mounted) setBlueprintResults([])
+                })
+                .finally(() => {
+                    if (mounted) setBlueprintSearching(false)
+                })
+        }, 250)
+
+        return () => {
+            mounted = false
+            clearTimeout(timer)
+        }
+    }, [editor.blueprintQuery])
+
+    const updateBlueprintQuery = (query) => {
+        setSelectedBlueprint(null)
+        setBomTree(null)
+        setDecisionsByNodeKey({})
+        setEditor((current) => ({
+            ...current,
+            blueprintQuery: query,
+            typeId: '',
+            typeName: '',
+        }))
+    }
+
+    const selectBlueprint = (blueprint) => {
+        setSelectedBlueprint(blueprint)
+        setBlueprintResults([])
+        setEditor((current) => ({
+            ...current,
+            blueprintQuery: blueprint.blueprintName,
+            typeId: String(blueprint.productTypeId),
+            typeName: blueprint.productTypeName,
+            name: current.name || `${blueprint.productTypeName} ${current.quantity} runs`,
+        }))
     }
 
     const updateFacility = (section, field, value) => {
@@ -382,13 +490,15 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     return (
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded overflow-hidden">
-                <div className="grid grid-cols-[90px_minmax(160px,1fr)_90px_90px_120px_minmax(140px,1fr)_160px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_180px_minmax(140px,1fr)_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
                     <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Blueprint</div>
-                    <input
-                        value={editor.typeName}
-                        onChange={updateEditor('typeName')}
-                        className="bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                        placeholder="Jackdaw"
+                    <BlueprintSearchInput
+                        query={editor.blueprintQuery}
+                        results={blueprintResults}
+                        searching={blueprintSearching}
+                        selectedBlueprint={selectedBlueprint}
+                        onQueryChange={updateBlueprintQuery}
+                        onSelect={selectBlueprint}
                     />
                     <label className="flex items-center gap-1">
                         <span className="text-foreground text-[12px] font-bold">Run</span>
@@ -410,14 +520,12 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         />
                     </label>
                     <label className="flex items-center gap-1">
-                        <span className="text-foreground text-[12px] font-bold">Type ID</span>
+                        <span className="text-foreground text-[12px] font-bold">Product</span>
                         <input
-                            type="number"
-                            min="1"
-                            value={editor.typeId}
-                            onChange={updateEditor('typeId')}
+                            value={editor.typeId ? `${editor.typeName} (${editor.typeId})` : ''}
+                            readOnly
                             className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
-                            placeholder="34828"
+                            placeholder="Select blueprint"
                         />
                     </label>
                     <input
