@@ -214,9 +214,6 @@ function BlueprintSearchInput({
                             <div className="text-[12px] text-foreground font-bold">
                                 {blueprint.productTypeName}
                             </div>
-                            <div className="text-[10px] text-foreground-dim">
-                                type {blueprint.productTypeId}
-                            </div>
                         </button>
                     ))}
                 </div>
@@ -228,10 +225,11 @@ function BlueprintSearchInput({
 function BomCard({ node, decision, onDecisionChange }) {
     return (
         <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[260px]">
-            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-center bg-muted px-2.5 py-1.5 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-start bg-muted px-2.5 py-1.5 border-b border-border">
                 <div className="min-w-0">
-                    <div className="text-[12px] text-foreground font-bold truncate">{node.typeName}</div>
-                    <div className="text-[9px] text-foreground-dim font-mono">type {node.typeId}</div>
+                    <div className="text-[12px] text-foreground font-bold leading-snug break-words">
+                        {node.typeName}
+                    </div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Qty</div>
