@@ -490,7 +490,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     return (
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded overflow-hidden">
-                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_180px_minmax(140px,1fr)_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_minmax(140px,1fr)_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
                     <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
@@ -517,15 +517,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                             value={editor.me}
                             onChange={updateEditor('me')}
                             className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
-                        />
-                    </label>
-                    <label className="flex items-center gap-1">
-                        <span className="text-foreground text-[12px] font-bold">Product</span>
-                        <input
-                            value={editor.typeId ? `${editor.typeName} (${editor.typeId})` : ''}
-                            readOnly
-                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
-                            placeholder="Select blueprint"
                         />
                     </label>
                     <input
