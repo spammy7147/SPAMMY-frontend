@@ -167,7 +167,7 @@ function DecisionButtons({ value, onChange }) {
                     type="button"
                     onClick={() => onChange(decision.value)}
                     className={cn(
-                        'border text-[10px] px-1.5 py-1 rounded-[2px] cursor-pointer font-bold transition-colors',
+                        'border text-[9px] px-1.5 py-0.5 rounded-[2px] cursor-pointer font-bold transition-colors',
                         value === decision.value
                             ? 'bg-secondary/20 border-secondary text-secondary'
                             : 'bg-transparent border-border text-foreground-dim hover:text-foreground-muted',
@@ -227,24 +227,42 @@ function BlueprintSearchInput({
 
 function BomCard({ node, decision, onDecisionChange }) {
     return (
-        <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[190px]">
-            <div className="bg-muted px-3 py-2 border-b border-border">
-                <div className="text-[12px] text-foreground font-bold truncate">{node.typeName}</div>
-                <div className="text-[10px] text-foreground-dim font-mono">type {node.typeId}</div>
-            </div>
-            <div className="p-3 flex flex-col gap-2">
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                        <div className="text-foreground-dim">Qty</div>
-                        <div className="text-foreground font-bold font-mono">{number(node.quantity)}</div>
-                    </div>
-                    <div>
-                        <div className="text-foreground-dim">Runs</div>
-                        <div className="text-foreground-muted font-bold font-mono">{number(node.runsPerJob)}</div>
-                    </div>
+        <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[260px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-center bg-muted px-2.5 py-1.5 border-b border-border">
+                <div className="min-w-0">
+                    <div className="text-[12px] text-foreground font-bold truncate">{node.typeName}</div>
+                    <div className="text-[9px] text-foreground-dim font-mono">type {node.typeId}</div>
                 </div>
+                <div className="text-right">
+                    <div className="text-[9px] text-foreground-dim">Qty</div>
+                    <div className="text-[11px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
+                </div>
+                <div className="text-right">
+                    <div className="text-[9px] text-foreground-dim">Runs</div>
+                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{number(node.runsPerJob)}</div>
+                </div>
+            </div>
+            <div className="px-2.5 py-1.5">
                 <DecisionButtons value={decision} onChange={onDecisionChange} />
             </div>
+        </div>
+    )
+}
+
+function BomColumn({ depth, nodes, decisionsByNodeKey, onDecisionChange }) {
+    return (
+        <div className="flex flex-col gap-1.5 w-[292px]">
+            <div className="text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1">
+                Tier {depth}
+            </div>
+            {nodes.map((node) => (
+                <BomCard
+                    key={node.nodeKey}
+                    node={node}
+                    decision={decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO'}
+                    onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
+                />
+            ))}
         </div>
     )
 }
@@ -262,21 +280,15 @@ function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
 
     return (
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
-            <div className="flex gap-2 p-3 min-w-max">
+            <div className="flex gap-2 p-2 min-w-max">
                 {columns.map((nodes, depth) => (
-                    <div key={depth} className="flex flex-col gap-2 w-[220px]">
-                        <div className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold px-1">
-                            Tier {depth}
-                        </div>
-                        {nodes.map((node) => (
-                            <BomCard
-                                key={node.nodeKey}
-                                node={node}
-                                decision={decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO'}
-                                onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
-                            />
-                        ))}
-                    </div>
+                    <BomColumn
+                        key={depth}
+                        depth={depth}
+                        nodes={nodes}
+                        decisionsByNodeKey={decisionsByNodeKey}
+                        onDecisionChange={onDecisionChange}
+                    />
                 ))}
             </div>
         </div>
