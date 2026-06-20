@@ -217,7 +217,7 @@ function BlueprintSearchInput({
                 </div>
             )}
             {showResults && (
-                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded overflow-hidden shadow-xl">
+                <div className="absolute z-20 mt-1 w-full max-h-[260px] overflow-y-auto bg-card border border-border rounded shadow-xl">
                     {results.map((blueprint) => (
                         <button
                             key={`${blueprint.blueprintTypeId}-${blueprint.productTypeId}`}
@@ -267,7 +267,7 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
                 </div>
             )}
             {showResults && (
-                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded overflow-hidden shadow-xl">
+                <div className="absolute z-20 mt-1 w-full max-h-[260px] overflow-y-auto bg-card border border-border rounded shadow-xl">
                     {results.map((system) => (
                         <button
                             key={system.systemId}
