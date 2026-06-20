@@ -9,10 +9,10 @@ const decisions = [
 ]
 
 const facilityRows = [
-    { id: 'manufacturing', label: 'Manufacturing', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
-    { id: 'component', label: 'Component', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
-    { id: 'reaction', label: 'Reaction', defaultStructure: 'Refinery I', defaultBonus: '2.2', defaultCost: '', defaultTax: '10' },
-    { id: 'fuel', label: 'Fuel', defaultStructure: 'Raitaru I', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+    { id: 'manufacturing', label: 'Manufacturing', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+    { id: 'component', label: 'Component', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+    { id: 'reaction', label: 'Reaction', defaultBonus: '2.2', defaultCost: '', defaultTax: '10' },
+    { id: 'fuel', label: 'Fuel', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
 ]
 
 function countNodes(template) {
@@ -25,7 +25,7 @@ function initialFacilityState() {
             row.id,
             {
                 index: '0.14',
-                structure: row.defaultStructure,
+                structure: '',
                 bonus: row.defaultBonus,
                 cost: row.defaultCost,
                 tax: row.defaultTax,
@@ -97,7 +97,13 @@ function buildTemplatePayload(editor, bomTree, decisionsByNodeKey) {
     }
 }
 
-function FacilitySettings({ facilities, onChange }) {
+function facilityTypeLabel(type) {
+    if (type === 'USER_STRUCTURE') return 'Structure'
+    if (type === 'NPC_STATION') return 'NPC'
+    return type || 'Facility'
+}
+
+function FacilitySettings({ facilities, facilityOptions, facilityLoading, hasSelectedSystem, onChange }) {
     return (
         <div className="bg-card border border-border rounded overflow-hidden">
             {facilityRows.map((row) => {
@@ -119,12 +125,20 @@ function FacilitySettings({ facilities, onChange }) {
                                 value={values.structure}
                                 onChange={(event) => onChange(row.id, 'structure', event.target.value)}
                                 className="w-full bg-muted border border-border text-foreground px-2 py-1 rounded-[3px] outline-none"
+                                disabled={!hasSelectedSystem || facilityLoading}
                             >
-                                <option>Raitaru I</option>
-                                <option>Azbel I</option>
-                                <option>Sotiyo I</option>
-                                <option>Refinery I</option>
-                                <option>NPC Station</option>
+                                <option value="">
+                                    {!hasSelectedSystem
+                                        ? 'Select system first'
+                                        : facilityLoading
+                                            ? 'Loading facilities...'
+                                            : 'Select facility'}
+                                </option>
+                                {facilityOptions.map((facility) => (
+                                    <option key={`${facility.facilityType}-${facility.facilityId}`} value={String(facility.facilityId)}>
+                                        {facility.facilityName} [{facilityTypeLabel(facility.facilityType)}]
+                                    </option>
+                                ))}
                             </select>
                         </label>
                         <label className="flex items-center gap-1">
@@ -421,6 +435,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [systemResults, setSystemResults] = useState([])
     const [selectedSystem, setSelectedSystem] = useState(null)
     const [systemSearching, setSystemSearching] = useState(false)
+    const [facilityOptions, setFacilityOptions] = useState([])
+    const [facilityLoading, setFacilityLoading] = useState(false)
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -497,6 +513,30 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }
     }, [editor.system, selectedSystem])
 
+    useEffect(() => {
+        if (!selectedSystem?.systemId) {
+            setFacilityOptions([])
+            return undefined
+        }
+
+        let mounted = true
+        setFacilityLoading(true)
+        industryApi.facilities(selectedSystem.systemId)
+            .then((facilities) => {
+                if (mounted) setFacilityOptions(facilities || [])
+            })
+            .catch(() => {
+                if (mounted) setFacilityOptions([])
+            })
+            .finally(() => {
+                if (mounted) setFacilityLoading(false)
+            })
+
+        return () => {
+            mounted = false
+        }
+    }, [selectedSystem])
+
     const updateBlueprintQuery = (query) => {
         setSelectedBlueprint(null)
         setBomTree(null)
@@ -523,12 +563,23 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     const updateSystemQuery = (query) => {
         setSelectedSystem(null)
+        setFacilityOptions([])
+        setFacilities((current) =>
+            Object.fromEntries(
+                Object.entries(current).map(([key, value]) => [key, { ...value, structure: '' }]),
+            ),
+        )
         setEditor((current) => ({ ...current, system: query }))
     }
 
     const selectSystem = (system) => {
         setSelectedSystem(system)
         setSystemResults([])
+        setFacilities((current) =>
+            Object.fromEntries(
+                Object.entries(current).map(([key, value]) => [key, { ...value, structure: '' }]),
+            ),
+        )
         setEditor((current) => ({ ...current, system: system.systemName }))
     }
 
@@ -659,7 +710,13 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         onChange={(decision) => setEditor((current) => ({ ...current, defaultDecision: decision }))}
                     />
                 </div>
-                <FacilitySettings facilities={facilities} onChange={updateFacility} />
+                <FacilitySettings
+                    facilities={facilities}
+                    facilityOptions={facilityOptions}
+                    facilityLoading={facilityLoading}
+                    hasSelectedSystem={Boolean(selectedSystem)}
+                    onChange={updateFacility}
+                />
             </form>
 
             {error && (

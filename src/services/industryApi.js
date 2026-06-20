@@ -8,6 +8,7 @@ export const industryApi = {
     systems: (query, limit = 10) => fetchApi(
         `/api/industry/systems?query=${encodeURIComponent(query)}&limit=${limit}`,
     ),
+    facilities: (systemId) => fetchApi(`/api/industry/systems/${systemId}/facilities`),
     manufacturingBom: (targetTypeId, quantity) => fetchApi(
         `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
     ),
