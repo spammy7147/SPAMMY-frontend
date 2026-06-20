@@ -382,6 +382,11 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     useEffect(() => {
         const query = editor.blueprintQuery.trim()
+        if (selectedBlueprint && query === selectedBlueprint.productTypeName) {
+            setBlueprintResults([])
+            setBlueprintSearching(false)
+            return undefined
+        }
         if (query.length < 2) {
             setBlueprintResults([])
             setBlueprintSearching(false)
@@ -407,7 +412,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
             clearTimeout(timer)
         }
-    }, [editor.blueprintQuery])
+    }, [editor.blueprintQuery, selectedBlueprint])
 
     const updateBlueprintQuery = (query) => {
         setSelectedBlueprint(null)
