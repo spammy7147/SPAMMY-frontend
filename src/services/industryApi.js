@@ -5,6 +5,9 @@ export const industryApi = {
     manufacturingBlueprints: (query, limit = 10) => fetchApi(
         `/api/industry/blueprints/manufacturing?query=${encodeURIComponent(query)}&limit=${limit}`,
     ),
+    systems: (query, limit = 10) => fetchApi(
+        `/api/industry/systems?query=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
     manufacturingBom: (targetTypeId, quantity) => fetchApi(
         `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
     ),

@@ -222,6 +222,47 @@ function BlueprintSearchInput({
     )
 }
 
+function SystemSearchInput({ query, results, searching, onQueryChange, onSelect }) {
+    const showResults = query.trim().length >= 2 && results.length > 0
+
+    return (
+        <div className="relative">
+            <input
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
+                placeholder="System"
+            />
+            {searching && (
+                <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
+                    SEARCH
+                </div>
+            )}
+            {showResults && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded overflow-hidden shadow-xl">
+                    {results.map((system) => (
+                        <button
+                            key={system.systemId}
+                            type="button"
+                            onClick={() => onSelect(system)}
+                            className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
+                        >
+                            <div className="text-[12px] text-foreground font-bold">
+                                {system.systemName}
+                            </div>
+                            {system.securityStatus != null && (
+                                <div className="text-[10px] text-foreground-dim">
+                                    Security {Number(system.securityStatus).toFixed(1)}
+                                </div>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 function BomCard({ node, decision, onDecisionChange }) {
     return (
         <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[260px]">
@@ -377,6 +418,9 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [blueprintResults, setBlueprintResults] = useState([])
     const [selectedBlueprint, setSelectedBlueprint] = useState(null)
     const [blueprintSearching, setBlueprintSearching] = useState(false)
+    const [systemResults, setSystemResults] = useState([])
+    const [selectedSystem, setSelectedSystem] = useState(null)
+    const [systemSearching, setSystemSearching] = useState(false)
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -419,6 +463,40 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }
     }, [editor.blueprintQuery, selectedBlueprint])
 
+    useEffect(() => {
+        const query = editor.system.trim()
+        if (selectedSystem && query === selectedSystem.systemName) {
+            setSystemResults([])
+            setSystemSearching(false)
+            return undefined
+        }
+        if (query.length < 2) {
+            setSystemResults([])
+            setSystemSearching(false)
+            return undefined
+        }
+
+        let mounted = true
+        const timer = setTimeout(() => {
+            setSystemSearching(true)
+            industryApi.systems(query)
+                .then((results) => {
+                    if (mounted) setSystemResults(results || [])
+                })
+                .catch(() => {
+                    if (mounted) setSystemResults([])
+                })
+                .finally(() => {
+                    if (mounted) setSystemSearching(false)
+                })
+        }, 250)
+
+        return () => {
+            mounted = false
+            clearTimeout(timer)
+        }
+    }, [editor.system, selectedSystem])
+
     const updateBlueprintQuery = (query) => {
         setSelectedBlueprint(null)
         setBomTree(null)
@@ -441,6 +519,17 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             typeName: blueprint.productTypeName,
             name: current.name || `${blueprint.productTypeName} ${current.quantity} runs`,
         }))
+    }
+
+    const updateSystemQuery = (query) => {
+        setSelectedSystem(null)
+        setEditor((current) => ({ ...current, system: query }))
+    }
+
+    const selectSystem = (system) => {
+        setSelectedSystem(system)
+        setSystemResults([])
+        setEditor((current) => ({ ...current, system: system.systemName }))
     }
 
     const updateFacility = (section, field, value) => {
@@ -537,11 +626,12 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                             className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
                         />
                     </label>
-                    <input
-                        value={editor.system}
-                        onChange={updateEditor('system')}
-                        className="bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                        placeholder="System"
+                    <SystemSearchInput
+                        query={editor.system}
+                        results={systemResults}
+                        searching={systemSearching}
+                        onQueryChange={updateSystemQuery}
+                        onSelect={selectSystem}
                     />
                     <button
                         type="submit"
