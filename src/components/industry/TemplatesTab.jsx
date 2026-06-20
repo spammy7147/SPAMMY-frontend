@@ -236,19 +236,33 @@ function BlueprintSearchInput({
     )
 }
 
-function SystemSearchInput({ query, results, searching, onQueryChange, onSelect }) {
-    const showResults = query.trim().length >= 2 && results.length > 0
+function SystemSearchInput({ query, results, searching, open, onOpenChange, onQueryChange, onSelect }) {
+    const showResults = open && results.length > 0
 
     return (
         <div className="relative">
-            <input
-                value={query}
-                onChange={(event) => onQueryChange(event.target.value)}
-                className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                placeholder="System"
-            />
+            <div className="flex bg-background border border-border rounded-[3px] focus-within:border-secondary">
+                <input
+                    value={query}
+                    onFocus={() => onOpenChange(true)}
+                    onChange={(event) => {
+                        onOpenChange(true)
+                        onQueryChange(event.target.value)
+                    }}
+                    className="min-w-0 flex-1 bg-transparent border-none text-foreground text-[12px] px-3 py-2 outline-none"
+                    placeholder="System"
+                />
+                <button
+                    type="button"
+                    onClick={() => onOpenChange(!open)}
+                    className="w-8 border-none border-l border-border bg-transparent text-foreground-dim cursor-pointer hover:text-foreground"
+                    aria-label="Toggle system dropdown"
+                >
+                    ▾
+                </button>
+            </div>
             {searching && (
-                <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
+                <div className="absolute right-10 top-2 text-[10px] text-foreground-dim font-bold">
                     SEARCH
                 </div>
             )}
@@ -258,7 +272,10 @@ function SystemSearchInput({ query, results, searching, onQueryChange, onSelect 
                         <button
                             key={system.systemId}
                             type="button"
-                            onClick={() => onSelect(system)}
+                            onClick={() => {
+                                onSelect(system)
+                                onOpenChange(false)
+                            }}
                             className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
                         >
                             <div className="text-[12px] text-foreground font-bold">
@@ -271,6 +288,11 @@ function SystemSearchInput({ query, results, searching, onQueryChange, onSelect 
                             )}
                         </button>
                     ))}
+                </div>
+            )}
+            {open && !searching && results.length === 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded px-3 py-3 text-[11px] text-foreground-dim shadow-xl">
+                    NO SYSTEMS
                 </div>
             )}
         </div>
@@ -435,6 +457,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [systemResults, setSystemResults] = useState([])
     const [selectedSystem, setSelectedSystem] = useState(null)
     const [systemSearching, setSystemSearching] = useState(false)
+    const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
     const [facilityOptions, setFacilityOptions] = useState([])
     const [facilityLoading, setFacilityLoading] = useState(false)
     const [calculating, setCalculating] = useState(false)
@@ -481,12 +504,12 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     useEffect(() => {
         const query = editor.system.trim()
-        if (selectedSystem && query === selectedSystem.systemName) {
+        if (!systemDropdownOpen) {
             setSystemResults([])
             setSystemSearching(false)
             return undefined
         }
-        if (query.length < 2) {
+        if (selectedSystem && query === selectedSystem.systemName) {
             setSystemResults([])
             setSystemSearching(false)
             return undefined
@@ -495,7 +518,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         let mounted = true
         const timer = setTimeout(() => {
             setSystemSearching(true)
-            industryApi.systems(query)
+            industryApi.systems(query, 20)
                 .then((results) => {
                     if (mounted) setSystemResults(results || [])
                 })
@@ -511,7 +534,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
             clearTimeout(timer)
         }
-    }, [editor.system, selectedSystem])
+    }, [editor.system, selectedSystem, systemDropdownOpen])
 
     useEffect(() => {
         if (!selectedSystem?.systemId) {
@@ -681,6 +704,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         query={editor.system}
                         results={systemResults}
                         searching={systemSearching}
+                        open={systemDropdownOpen}
+                        onOpenChange={setSystemDropdownOpen}
                         onQueryChange={updateSystemQuery}
                         onSelect={selectSystem}
                     />
