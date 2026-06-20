@@ -184,7 +184,6 @@ function BlueprintSearchInput({
     query,
     results,
     searching,
-    selectedBlueprint,
     onQueryChange,
     onSelect,
 }) {
@@ -220,11 +219,6 @@ function BlueprintSearchInput({
                             </div>
                         </button>
                     ))}
-                </div>
-            )}
-            {selectedBlueprint && (
-                <div className="mt-1 text-[10px] text-secondary font-bold">
-                    Selected: {selectedBlueprint.productTypeName}
                 </div>
             )}
         </div>
@@ -501,7 +495,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         query={editor.blueprintQuery}
                         results={blueprintResults}
                         searching={blueprintSearching}
-                        selectedBlueprint={selectedBlueprint}
                         onQueryChange={updateBlueprintQuery}
                         onSelect={selectBlueprint}
                     />
