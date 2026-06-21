@@ -77,6 +77,10 @@ function displayRuns(node, decision) {
     return number(node.runsPerJob)
 }
 
+function displayOutputQuantity(node) {
+    return node.outputQuantity ? number(node.outputQuantity) : '-'
+}
+
 function parseOptionalInteger(value) {
     if (value === '' || value == null) return null
     const parsed = Number(value)
@@ -390,7 +394,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
             'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[420px] shadow-sm',
             nodeBorderClass(decision, buildable),
         )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px_64px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
                 <div className="min-w-0">
                     <div className="text-[12px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
@@ -403,6 +407,10 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Runs</div>
                     <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
+                </div>
+                <div className="text-right">
+                    <div className="text-[9px] text-foreground-dim">Out/run</div>
+                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
                 </div>
             </div>
             <div className="grid grid-cols-[22px_70px_22px_70px_minmax(0,1fr)] gap-1.5 items-center px-2.5 py-1.5">
