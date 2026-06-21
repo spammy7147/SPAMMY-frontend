@@ -538,7 +538,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     )
 }
 
-function MaterialsSummary({ bomTree, decisionsByNodeKey }) {
+function MaterialsSummary({ bomTree, decisionsByNodeKey, maxHeightClass = 'max-h-[520px]' }) {
     const materials = useMemo(
         () => Array.from(aggregateRequiredMaterials(bomTree, decisionsByNodeKey).values()),
         [bomTree, decisionsByNodeKey],
@@ -550,7 +550,7 @@ function MaterialsSummary({ bomTree, decisionsByNodeKey }) {
                 <div className="text-[11px] text-foreground-dim uppercase tracking-wider font-bold">Materials</div>
                 <div className="text-[11px] text-foreground-muted font-bold">{materials.length} items</div>
             </div>
-            <div className="max-h-[520px] overflow-y-auto">
+            <div className={cn(maxHeightClass, 'overflow-y-auto')}>
                 {materials.length > 0 ? materials.map((material) => (
                     <div key={material.typeId} className="grid grid-cols-[minmax(0,1fr)_90px] gap-2 px-3 py-2 border-b border-border last:border-b-0 text-[12px]">
                         <div className="text-foreground-muted truncate">{material.typeName}</div>
@@ -941,9 +941,13 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                 </div>
             )}
 
-            <div className="grid grid-cols-[280px_minmax(0,1fr)] gap-4 max-xl:grid-cols-1">
-                <MaterialsSummary bomTree={bomTree} decisionsByNodeKey={decisionsByNodeKey} />
-                <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start max-xl:grid-cols-1">
+                    <MaterialsSummary
+                        bomTree={bomTree}
+                        decisionsByNodeKey={decisionsByNodeKey}
+                        maxHeightClass="max-h-[220px]"
+                    />
                     <div className="flex justify-end">
                         <button
                             type="button"
@@ -954,14 +958,14 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                             {saving ? 'Saving...' : 'Save Template'}
                         </button>
                     </div>
-                    <BomTree
-                        bomTree={bomTree}
-                        decisionsByNodeKey={decisionsByNodeKey}
-                        nodeSettingsByNodeKey={nodeSettingsByNodeKey}
-                        onDecisionChange={setNodeDecision}
-                        onSettingsChange={setNodeSetting}
-                    />
                 </div>
+                <BomTree
+                    bomTree={bomTree}
+                    decisionsByNodeKey={decisionsByNodeKey}
+                    nodeSettingsByNodeKey={nodeSettingsByNodeKey}
+                    onDecisionChange={setNodeDecision}
+                    onSettingsChange={setNodeSetting}
+                />
             </div>
 
             <TemplatesList templates={templates} />
