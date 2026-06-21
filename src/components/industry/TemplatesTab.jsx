@@ -378,14 +378,14 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
 
     return (
         <div className={cn(
-            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[330px] shadow-sm',
+            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[420px] shadow-sm',
             decision === 'PRODUCE' && 'border-emerald-400/45 shadow-[inset_3px_0_0_rgba(52,211,153,0.4)]',
             decision === 'PURCHASE' && 'border-amber-400/45 shadow-[inset_3px_0_0_rgba(251,191,36,0.35)]',
             decision === 'AUTO' && 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]',
         )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-start bg-muted px-2.5 py-1.5 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
                 <div className="min-w-0">
-                    <div className="text-[12px] text-foreground font-bold leading-snug break-words">
+                    <div className="text-[12px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
                     </div>
                 </div>
@@ -398,9 +398,9 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                     <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
                 </div>
             </div>
-            <div className="grid grid-cols-[64px_64px_minmax(0,1fr)] gap-1.5 px-2.5 py-1.5">
+            <div className="grid grid-cols-[22px_70px_22px_70px_minmax(0,1fr)] gap-1.5 items-center px-2.5 py-1.5">
+                <span className="text-[9px] text-foreground-dim font-bold">ME</span>
                 <label className="min-w-0">
-                    <span className="block text-[9px] text-foreground-dim font-bold mb-0.5">ME</span>
                     <input
                         type="number"
                         value={settings.materialEfficiency}
@@ -409,8 +409,8 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                         className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
                     />
                 </label>
+                <span className="text-[9px] text-foreground-dim font-bold">TE</span>
                 <label className="min-w-0">
-                    <span className="block text-[9px] text-foreground-dim font-bold mb-0.5">TE</span>
                     <input
                         type="number"
                         value={settings.timeEfficiency}
@@ -429,7 +429,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const contentRef = useRef(null)
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
-    const rowHeight = 132
+    const rowHeight = 104
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -485,9 +485,9 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
             <div
                 ref={contentRef}
-                className="relative grid gap-x-4 gap-y-2 p-3 min-w-max"
+                className="relative grid gap-x-4 gap-y-1 p-3 min-w-max"
                 style={{
-                    gridTemplateColumns: `repeat(${layout.columnCount}, 330px)`,
+                    gridTemplateColumns: `repeat(${layout.columnCount}, 420px)`,
                     gridTemplateRows: `28px repeat(${layout.rowCount}, ${rowHeight}px)`,
                 }}
             >
