@@ -429,7 +429,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const contentRef = useRef(null)
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
-    const rowHeight = 104
+    const rowHeight = 88
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -485,7 +485,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
             <div
                 ref={contentRef}
-                className="relative grid gap-x-4 gap-y-1 p-3 min-w-max"
+                className="relative grid gap-x-4 gap-y-0 p-3 min-w-max"
                 style={{
                     gridTemplateColumns: `repeat(${layout.columnCount}, 420px)`,
                     gridTemplateRows: `28px repeat(${layout.rowCount}, ${rowHeight}px)`,
