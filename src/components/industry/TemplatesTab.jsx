@@ -34,13 +34,14 @@ function initialFacilityState() {
     )
 }
 
-function flattenBom(node, decisionsByNodeKey, parentNodeKey = null) {
+function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettingsByNodeKey = {}) {
     if (!node) return []
 
     const decision = effectiveDecision(node, decisionsByNodeKey)
     const children = shouldExpandChildren(node, decisionsByNodeKey)
-        ? (node.children || []).flatMap((child) => flattenBom(child, decisionsByNodeKey, node.nodeKey))
+        ? (node.children || []).flatMap((child) => flattenBom(child, decisionsByNodeKey, node.nodeKey, nodeSettingsByNodeKey))
         : []
+    const nodeSettings = nodeSettingsByNodeKey[node.nodeKey] || {}
 
     return [
         {
@@ -52,8 +53,8 @@ function flattenBom(node, decisionsByNodeKey, parentNodeKey = null) {
             runsPerJob: node.runsPerJob || 1,
             decision,
             facilityPresetId: null,
-            materialEfficiency: null,
-            timeEfficiency: null,
+            materialEfficiency: parseOptionalInteger(nodeSettings.materialEfficiency),
+            timeEfficiency: parseOptionalInteger(nodeSettings.timeEfficiency),
         },
         ...children,
     ]
@@ -65,6 +66,30 @@ function effectiveDecision(node, decisionsByNodeKey) {
 
 function shouldExpandChildren(node, decisionsByNodeKey) {
     return effectiveDecision(node, decisionsByNodeKey) !== 'PURCHASE'
+}
+
+function hasBuildableChildren(node) {
+    return (node.children || []).length > 0
+}
+
+function displayRuns(node, decision) {
+    if (!hasBuildableChildren(node) || decision === 'PURCHASE') return '-'
+    return number(node.runsPerJob)
+}
+
+function parseOptionalInteger(value) {
+    if (value === '' || value == null) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
+function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = {}) {
+    if (!node) return result
+    result[node.nodeKey] = hasBuildableChildren(node)
+        ? { materialEfficiency, timeEfficiency }
+        : { materialEfficiency: '', timeEfficiency: '' }
+    ;(node.children || []).forEach((child) => collectNodeSettings(child, materialEfficiency, timeEfficiency, result))
+    return result
 }
 
 function groupByDepth(node, decisionsByNodeKey, depth = 0, columns = []) {
@@ -94,8 +119,8 @@ function number(value) {
     return Number(value || 0).toLocaleString()
 }
 
-function buildTemplatePayload(editor, bomTree, decisionsByNodeKey) {
-    const nodes = flattenBom(bomTree, decisionsByNodeKey)
+function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey) {
+    const nodes = flattenBom(bomTree, decisionsByNodeKey, null, nodeSettingsByNodeKey)
     const target = nodes[0]
 
     return {
@@ -314,9 +339,15 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
     )
 }
 
-function BomCard({ node, decision, onDecisionChange }) {
+function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange }) {
+    const buildable = hasBuildableChildren(node)
+    const settingsDisabled = !buildable || decision === 'PURCHASE'
+
     return (
-        <div className="bg-card border border-border rounded-[4px] overflow-hidden min-w-[260px]">
+        <div className={cn(
+            'bg-card border rounded-[4px] overflow-hidden min-w-[310px]',
+            decision === 'PURCHASE' ? 'border-amber-400/40' : 'border-border',
+        )}>
             <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-start bg-muted px-2.5 py-1.5 border-b border-border">
                 <div className="min-w-0">
                     <div className="text-[12px] text-foreground font-bold leading-snug break-words">
@@ -324,40 +355,65 @@ function BomCard({ node, decision, onDecisionChange }) {
                     </div>
                 </div>
                 <div className="text-right">
-                    <div className="text-[9px] text-foreground-dim">Qty</div>
+                    <div className="text-[9px] text-foreground-dim">Need</div>
                     <div className="text-[11px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Runs</div>
-                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{number(node.runsPerJob)}</div>
+                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
                 </div>
             </div>
-            <div className="px-2.5 py-1.5">
+            <div className="grid grid-cols-[64px_64px_minmax(0,1fr)] gap-1.5 px-2.5 py-1.5">
+                <label className="min-w-0">
+                    <span className="block text-[9px] text-foreground-dim font-bold mb-0.5">ME</span>
+                    <input
+                        type="number"
+                        value={settings.materialEfficiency}
+                        onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
+                        disabled={settingsDisabled}
+                        className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                    />
+                </label>
+                <label className="min-w-0">
+                    <span className="block text-[9px] text-foreground-dim font-bold mb-0.5">TE</span>
+                    <input
+                        type="number"
+                        value={settings.timeEfficiency}
+                        onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
+                        disabled={settingsDisabled}
+                        className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                    />
+                </label>
                 <DecisionButtons value={decision} onChange={onDecisionChange} />
             </div>
         </div>
     )
 }
 
-function BomColumn({ depth, nodes, decisionsByNodeKey, onDecisionChange }) {
+function BomColumn({ depth, nodes, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
     return (
-        <div className="flex flex-col gap-1.5 w-[292px]">
+        <div className={cn(
+            'flex flex-col gap-1.5 w-[342px]',
+            depth > 0 && 'border-l border-border/70 pl-2',
+        )}>
             <div className="text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1">
-                Tier {depth}
+                Tier {depth} · {nodes.length} items
             </div>
             {nodes.map((node) => (
                 <BomCard
                     key={node.nodeKey}
                     node={node}
                     decision={effectiveDecision(node, decisionsByNodeKey)}
+                    settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '' }}
                     onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
+                    onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
                 />
             ))}
         </div>
     )
 }
 
-function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
+function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
     if (!bomTree) {
         return (
             <div className="bg-card border border-border rounded p-12 text-center text-foreground-dim">
@@ -377,7 +433,9 @@ function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
                         depth={depth}
                         nodes={nodes}
                         decisionsByNodeKey={decisionsByNodeKey}
+                        nodeSettingsByNodeKey={nodeSettingsByNodeKey}
                         onDecisionChange={onDecisionChange}
+                        onSettingsChange={onSettingsChange}
                     />
                 ))}
             </div>
@@ -479,6 +537,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
     const [facilityOptions, setFacilityOptions] = useState([])
     const [facilityLoading, setFacilityLoading] = useState(false)
+    const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState(null)
@@ -587,6 +646,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSelectedBlueprint(null)
         setBomTree(null)
         setDecisionsByNodeKey({})
+        setNodeSettingsByNodeKey({})
         setEditor((current) => ({
             ...current,
             blueprintQuery: query,
@@ -655,6 +715,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             setDecisionsByNodeKey(
                 Object.fromEntries(flattenBom(tree, {}).map((node) => [node.nodeKey, editor.defaultDecision])),
             )
+            setNodeSettingsByNodeKey(collectNodeSettings(tree, editor.me, editor.te))
         } catch (err) {
             setError(err.message)
         } finally {
@@ -668,7 +729,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSaving(true)
         setError(null)
         try {
-            const payload = buildTemplatePayload(editor, bomTree, decisionsByNodeKey)
+            const payload = buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey)
             const created = await industryApi.createTemplate(payload)
             onTemplateCreated(created)
             setEditor((current) => ({ ...current, name: '', description: '' }))
@@ -681,6 +742,18 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     const setNodeDecision = (nodeKey, decision) => {
         setDecisionsByNodeKey((current) => ({ ...current, [nodeKey]: decision }))
+    }
+
+    const setNodeSetting = (nodeKey, field, value) => {
+        setNodeSettingsByNodeKey((current) => ({
+            ...current,
+            [nodeKey]: {
+                materialEfficiency: '',
+                timeEfficiency: '',
+                ...(current[nodeKey] || {}),
+                [field]: value,
+            },
+        }))
     }
 
     return (
@@ -789,7 +862,9 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     <BomTree
                         bomTree={bomTree}
                         decisionsByNodeKey={decisionsByNodeKey}
+                        nodeSettingsByNodeKey={nodeSettingsByNodeKey}
                         onDecisionChange={setNodeDecision}
+                        onSettingsChange={setNodeSetting}
                     />
                 </div>
             </div>
