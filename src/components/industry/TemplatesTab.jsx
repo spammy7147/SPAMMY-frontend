@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { industryApi } from '@/services/industryApi'
 
@@ -92,14 +92,41 @@ function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = 
     return result
 }
 
-function groupByDepth(node, decisionsByNodeKey, depth = 0, columns = []) {
-    if (!node) return columns
-    if (!columns[depth]) columns[depth] = []
-    columns[depth].push(node)
-    if (shouldExpandChildren(node, decisionsByNodeKey)) {
-        ;(node.children || []).forEach((child) => groupByDepth(child, decisionsByNodeKey, depth + 1, columns))
+function buildTierLayout(node, decisionsByNodeKey) {
+    const nodes = []
+    const edges = []
+    let row = 0
+    let maxDepth = 0
+
+    function walk(current, depth, parent = null) {
+        const currentRow = row
+        maxDepth = Math.max(maxDepth, depth)
+        nodes.push({ node: current, depth, row: currentRow })
+
+        if (parent) {
+            edges.push({
+                from: parent.nodeKey,
+                to: current.nodeKey,
+                decision: effectiveDecision(current, decisionsByNodeKey),
+            })
+        }
+
+        const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
+        if (children.length === 0) {
+            row += 1
+            return
+        }
+
+        children.forEach((child) => walk(child, depth + 1, current))
     }
-    return columns
+
+    if (node) walk(node, 0)
+    return {
+        nodes,
+        edges,
+        columnCount: maxDepth + 1,
+        rowCount: Math.max(row, 1),
+    }
 }
 
 function aggregateRequiredMaterials(node, decisionsByNodeKey, result = new Map()) {
@@ -339,14 +366,22 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
     )
 }
 
+function connectorClass(decision) {
+    if (decision === 'PRODUCE') return 'stroke-emerald-400/55'
+    if (decision === 'PURCHASE') return 'stroke-amber-300/55'
+    return 'stroke-sky-400/55'
+}
+
 function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange }) {
     const buildable = hasBuildableChildren(node)
     const settingsDisabled = !buildable || decision === 'PURCHASE'
 
     return (
         <div className={cn(
-            'bg-card border rounded-[4px] overflow-hidden min-w-[310px]',
-            decision === 'PURCHASE' ? 'border-amber-400/40' : 'border-border',
+            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[330px] shadow-sm',
+            decision === 'PRODUCE' && 'border-emerald-400/45 shadow-[inset_3px_0_0_rgba(52,211,153,0.4)]',
+            decision === 'PURCHASE' && 'border-amber-400/45 shadow-[inset_3px_0_0_rgba(251,191,36,0.35)]',
+            decision === 'AUTO' && 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]',
         )}>
             <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-start bg-muted px-2.5 py-1.5 border-b border-border">
                 <div className="min-w-0">
@@ -390,30 +425,53 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
     )
 }
 
-function BomColumn({ depth, nodes, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
-    return (
-        <div className={cn(
-            'flex flex-col gap-1.5 w-[342px]',
-            depth > 0 && 'border-l border-border/70 pl-2',
-        )}>
-            <div className="text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1">
-                Tier {depth} · {nodes.length} items
-            </div>
-            {nodes.map((node) => (
-                <BomCard
-                    key={node.nodeKey}
-                    node={node}
-                    decision={effectiveDecision(node, decisionsByNodeKey)}
-                    settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '' }}
-                    onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
-                    onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
-                />
-            ))}
-        </div>
-    )
-}
-
 function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
+    const contentRef = useRef(null)
+    const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
+    const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
+
+    useLayoutEffect(() => {
+        const content = contentRef.current
+        if (!content) return undefined
+
+        const drawConnectors = () => {
+            const paths = layout.edges.flatMap((edge) => {
+                const from = content.querySelector(`[data-node-key="${CSS.escape(edge.from)}"]`)
+                const to = content.querySelector(`[data-node-key="${CSS.escape(edge.to)}"]`)
+                if (!from || !to) return []
+
+                const startX = from.offsetLeft + from.offsetWidth
+                const startY = from.offsetTop + from.offsetHeight / 2
+                const endX = to.offsetLeft
+                const endY = to.offsetTop + to.offsetHeight / 2
+                const midX = startX + Math.max(8, (endX - startX) / 2)
+
+                return [{
+                    key: `${edge.from}-${edge.to}`,
+                    decision: edge.decision,
+                    d: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`,
+                }]
+            })
+
+            setConnectors({
+                width: content.scrollWidth,
+                height: content.scrollHeight,
+                paths,
+            })
+        }
+
+        drawConnectors()
+        const resizeObserver = new ResizeObserver(drawConnectors)
+        resizeObserver.observe(content)
+        content.querySelectorAll('[data-node-key]').forEach((element) => resizeObserver.observe(element))
+        window.addEventListener('resize', drawConnectors)
+
+        return () => {
+            resizeObserver.disconnect()
+            window.removeEventListener('resize', drawConnectors)
+        }
+    }, [layout])
+
     if (!bomTree) {
         return (
             <div className="bg-card border border-border rounded p-12 text-center text-foreground-dim">
@@ -422,21 +480,57 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
         )
     }
 
-    const columns = groupByDepth(bomTree, decisionsByNodeKey)
-
     return (
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
-            <div className="flex gap-2 p-2 min-w-max">
-                {columns.map((nodes, depth) => (
-                    <BomColumn
+            <div
+                ref={contentRef}
+                className="relative grid gap-x-4 gap-y-0 p-2 min-w-max"
+                style={{
+                    gridTemplateColumns: `repeat(${layout.columnCount}, 330px)`,
+                    gridTemplateRows: `28px repeat(${layout.rowCount}, 88px)`,
+                }}
+            >
+                <svg
+                    className="absolute inset-0 z-0 pointer-events-none"
+                    width={connectors.width}
+                    height={connectors.height}
+                    viewBox={`0 0 ${connectors.width || 1} ${connectors.height || 1}`}
+                    aria-hidden="true"
+                >
+                    {connectors.paths.map((path) => (
+                        <path
+                            key={path.key}
+                            d={path.d}
+                            className={cn('fill-none stroke-2', connectorClass(path.decision))}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    ))}
+                </svg>
+                {Array.from({ length: layout.columnCount }, (_, depth) => (
+                    <div
                         key={depth}
-                        depth={depth}
-                        nodes={nodes}
-                        decisionsByNodeKey={decisionsByNodeKey}
-                        nodeSettingsByNodeKey={nodeSettingsByNodeKey}
-                        onDecisionChange={onDecisionChange}
-                        onSettingsChange={onSettingsChange}
-                    />
+                        className="text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1"
+                        style={{ gridColumn: depth + 1, gridRow: 1 }}
+                    >
+                        Tier {depth}
+                    </div>
+                ))}
+                {layout.nodes.map(({ node, depth, row }) => (
+                    <div
+                        key={node.nodeKey}
+                        data-node-key={node.nodeKey}
+                        className="self-center"
+                        style={{ gridColumn: depth + 1, gridRow: row + 2 }}
+                    >
+                        <BomCard
+                            node={node}
+                            decision={effectiveDecision(node, decisionsByNodeKey)}
+                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '' }}
+                            onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
+                            onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
+                        />
+                    </div>
                 ))}
             </div>
         </div>
