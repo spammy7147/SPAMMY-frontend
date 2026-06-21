@@ -108,6 +108,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
                 from: parent.nodeKey,
                 to: current.nodeKey,
                 decision: effectiveDecision(current, decisionsByNodeKey),
+                buildable: hasBuildableChildren(current),
             })
         }
 
@@ -367,9 +368,17 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
 }
 
 function connectorClass(decision) {
+    if (decision === 'MATERIAL') return 'stroke-slate-400/40'
     if (decision === 'PRODUCE') return 'stroke-emerald-400/55'
     if (decision === 'PURCHASE') return 'stroke-amber-300/55'
     return 'stroke-sky-400/55'
+}
+
+function nodeBorderClass(decision, buildable) {
+    if (!buildable) return 'border-border shadow-[inset_3px_0_0_rgba(148,163,184,0.32)]'
+    if (decision === 'PRODUCE') return 'border-emerald-400/45 shadow-[inset_3px_0_0_rgba(52,211,153,0.4)]'
+    if (decision === 'PURCHASE') return 'border-amber-400/45 shadow-[inset_3px_0_0_rgba(251,191,36,0.35)]'
+    return 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]'
 }
 
 function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange }) {
@@ -379,9 +388,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
     return (
         <div className={cn(
             'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[420px] shadow-sm',
-            decision === 'PRODUCE' && 'border-emerald-400/45 shadow-[inset_3px_0_0_rgba(52,211,153,0.4)]',
-            decision === 'PURCHASE' && 'border-amber-400/45 shadow-[inset_3px_0_0_rgba(251,191,36,0.35)]',
-            decision === 'AUTO' && 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]',
+            nodeBorderClass(decision, buildable),
         )}>
             <div className="grid grid-cols-[minmax(0,1fr)_64px_54px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
                 <div className="min-w-0">
@@ -399,27 +406,35 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                 </div>
             </div>
             <div className="grid grid-cols-[22px_70px_22px_70px_minmax(0,1fr)] gap-1.5 items-center px-2.5 py-1.5">
-                <span className="text-[9px] text-foreground-dim font-bold">ME</span>
-                <label className="min-w-0">
-                    <input
-                        type="number"
-                        value={settings.materialEfficiency}
-                        onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
-                        disabled={settingsDisabled}
-                        className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
-                    />
-                </label>
-                <span className="text-[9px] text-foreground-dim font-bold">TE</span>
-                <label className="min-w-0">
-                    <input
-                        type="number"
-                        value={settings.timeEfficiency}
-                        onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
-                        disabled={settingsDisabled}
-                        className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
-                    />
-                </label>
-                <DecisionButtons value={decision} onChange={onDecisionChange} />
+                {buildable ? (
+                    <>
+                        <span className="text-[9px] text-foreground-dim font-bold">ME</span>
+                        <label className="min-w-0">
+                            <input
+                                type="number"
+                                value={settings.materialEfficiency}
+                                onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
+                                disabled={settingsDisabled}
+                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                            />
+                        </label>
+                        <span className="text-[9px] text-foreground-dim font-bold">TE</span>
+                        <label className="min-w-0">
+                            <input
+                                type="number"
+                                value={settings.timeEfficiency}
+                                onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
+                                disabled={settingsDisabled}
+                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                            />
+                        </label>
+                        <DecisionButtons value={decision} onChange={onDecisionChange} />
+                    </>
+                ) : (
+                    <div className="col-span-5 flex items-center justify-end text-[10px] text-foreground-dim font-bold uppercase tracking-wider">
+                        Acquire Material
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -449,7 +464,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
 
                 return [{
                     key: `${edge.from}-${edge.to}`,
-                    decision: edge.decision,
+                    decision: edge.buildable ? edge.decision : 'MATERIAL',
                     d: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`,
                 }]
             })
