@@ -37,6 +37,11 @@ function initialFacilityState() {
 function flattenBom(node, decisionsByNodeKey, parentNodeKey = null) {
     if (!node) return []
 
+    const decision = effectiveDecision(node, decisionsByNodeKey)
+    const children = shouldExpandChildren(node, decisionsByNodeKey)
+        ? (node.children || []).flatMap((child) => flattenBom(child, decisionsByNodeKey, node.nodeKey))
+        : []
+
     return [
         {
             nodeKey: node.nodeKey,
@@ -45,33 +50,43 @@ function flattenBom(node, decisionsByNodeKey, parentNodeKey = null) {
             typeName: node.typeName,
             quantity: node.quantity,
             runsPerJob: node.runsPerJob || 1,
-            decision: decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO',
+            decision,
             facilityPresetId: null,
             materialEfficiency: null,
             timeEfficiency: null,
         },
-        ...(node.children || []).flatMap((child) => flattenBom(child, decisionsByNodeKey, node.nodeKey)),
+        ...children,
     ]
 }
 
-function groupByDepth(node, depth = 0, columns = []) {
+function effectiveDecision(node, decisionsByNodeKey) {
+    return decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO'
+}
+
+function shouldExpandChildren(node, decisionsByNodeKey) {
+    return effectiveDecision(node, decisionsByNodeKey) !== 'PURCHASE'
+}
+
+function groupByDepth(node, decisionsByNodeKey, depth = 0, columns = []) {
     if (!node) return columns
     if (!columns[depth]) columns[depth] = []
     columns[depth].push(node)
-    ;(node.children || []).forEach((child) => groupByDepth(child, depth + 1, columns))
+    if (shouldExpandChildren(node, decisionsByNodeKey)) {
+        ;(node.children || []).forEach((child) => groupByDepth(child, decisionsByNodeKey, depth + 1, columns))
+    }
     return columns
 }
 
-function aggregateLeaves(node, result = new Map()) {
+function aggregateRequiredMaterials(node, decisionsByNodeKey, result = new Map()) {
     if (!node) return result
     const children = node.children || []
-    if (children.length === 0) {
+    if (children.length === 0 || !shouldExpandChildren(node, decisionsByNodeKey)) {
         const current = result.get(node.typeId) || { typeId: node.typeId, typeName: node.typeName, quantity: 0 }
         current.quantity += Number(node.quantity || 0)
         result.set(node.typeId, current)
         return result
     }
-    children.forEach((child) => aggregateLeaves(child, result))
+    children.forEach((child) => aggregateRequiredMaterials(child, decisionsByNodeKey, result))
     return result
 }
 
@@ -334,7 +349,7 @@ function BomColumn({ depth, nodes, decisionsByNodeKey, onDecisionChange }) {
                 <BomCard
                     key={node.nodeKey}
                     node={node}
-                    decision={decisionsByNodeKey[node.nodeKey] || node.decision || 'AUTO'}
+                    decision={effectiveDecision(node, decisionsByNodeKey)}
                     onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
                 />
             ))}
@@ -351,7 +366,7 @@ function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
         )
     }
 
-    const columns = groupByDepth(bomTree)
+    const columns = groupByDepth(bomTree, decisionsByNodeKey)
 
     return (
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
@@ -370,8 +385,11 @@ function BomTree({ bomTree, decisionsByNodeKey, onDecisionChange }) {
     )
 }
 
-function MaterialsSummary({ bomTree }) {
-    const materials = useMemo(() => Array.from(aggregateLeaves(bomTree).values()), [bomTree])
+function MaterialsSummary({ bomTree, decisionsByNodeKey }) {
+    const materials = useMemo(
+        () => Array.from(aggregateRequiredMaterials(bomTree, decisionsByNodeKey).values()),
+        [bomTree, decisionsByNodeKey],
+    )
 
     return (
         <div className="bg-card border border-border rounded overflow-hidden">
@@ -756,7 +774,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             )}
 
             <div className="grid grid-cols-[280px_minmax(0,1fr)] gap-4 max-xl:grid-cols-1">
-                <MaterialsSummary bomTree={bomTree} />
+                <MaterialsSummary bomTree={bomTree} decisionsByNodeKey={decisionsByNodeKey} />
                 <div className="flex flex-col gap-3">
                     <div className="flex justify-end">
                         <button
