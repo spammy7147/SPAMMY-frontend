@@ -455,6 +455,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [selectedBlueprint, setSelectedBlueprint] = useState(null)
     const [blueprintSearching, setBlueprintSearching] = useState(false)
     const [systemResults, setSystemResults] = useState([])
+    const [systemCache, setSystemCache] = useState(null)
     const [selectedSystem, setSelectedSystem] = useState(null)
     const [systemSearching, setSystemSearching] = useState(false)
     const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
@@ -503,38 +504,42 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     }, [editor.blueprintQuery, selectedBlueprint])
 
     useEffect(() => {
-        const query = editor.system.trim()
         if (!systemDropdownOpen) {
             setSystemResults([])
             setSystemSearching(false)
             return undefined
         }
-        if (selectedSystem && query === selectedSystem.systemName) {
-            setSystemResults([])
+
+        if (systemCache) {
+            const query = editor.system.trim().toLowerCase()
+            const filteredSystems = query
+                ? systemCache.filter((system) => system.systemName.toLowerCase().includes(query))
+                : systemCache
+            setSystemResults(filteredSystems)
             setSystemSearching(false)
             return undefined
         }
 
         let mounted = true
-        const timer = setTimeout(() => {
-            setSystemSearching(true)
-            industryApi.systems(query, 10000)
-                .then((results) => {
-                    if (mounted) setSystemResults(results || [])
-                })
-                .catch(() => {
-                    if (mounted) setSystemResults([])
-                })
-                .finally(() => {
-                    if (mounted) setSystemSearching(false)
-                })
-        }, 250)
+        setSystemSearching(true)
+        industryApi.systems('', 10000)
+            .then((results) => {
+                if (!mounted) return
+                const systems = results || []
+                setSystemCache(systems)
+                setSystemResults(systems)
+            })
+            .catch(() => {
+                if (mounted) setSystemResults([])
+            })
+            .finally(() => {
+                if (mounted) setSystemSearching(false)
+            })
 
         return () => {
             mounted = false
-            clearTimeout(timer)
         }
-    }, [editor.system, selectedSystem, systemDropdownOpen])
+    }, [editor.system, systemCache, systemDropdownOpen])
 
     useEffect(() => {
         if (!selectedSystem?.systemId) {
