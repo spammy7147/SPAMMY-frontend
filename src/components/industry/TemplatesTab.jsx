@@ -942,22 +942,15 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             )}
 
             <div className="flex flex-col gap-3">
-                <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start max-xl:grid-cols-1">
-                    <MaterialsSummary
-                        bomTree={bomTree}
-                        decisionsByNodeKey={decisionsByNodeKey}
-                        maxHeightClass="max-h-[220px]"
-                    />
-                    <div className="flex justify-end">
-                        <button
-                            type="button"
-                            onClick={saveTemplate}
-                            disabled={!canSave || saving}
-                            className="bg-secondary border border-secondary text-background px-4 py-2 rounded text-xs font-extrabold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            {saving ? 'Saving...' : 'Save Template'}
-                        </button>
-                    </div>
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={saveTemplate}
+                        disabled={!canSave || saving}
+                        className="bg-secondary border border-secondary text-background px-4 py-2 rounded text-xs font-extrabold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {saving ? 'Saving...' : 'Save Template'}
+                    </button>
                 </div>
                 <BomTree
                     bomTree={bomTree}
@@ -968,7 +961,14 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                 />
             </div>
 
-            <TemplatesList templates={templates} />
+            <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start max-xl:grid-cols-1">
+                <MaterialsSummary
+                    bomTree={bomTree}
+                    decisionsByNodeKey={decisionsByNodeKey}
+                    maxHeightClass="max-h-[520px]"
+                />
+                <TemplatesList templates={templates} />
+            </div>
         </div>
     )
 }
