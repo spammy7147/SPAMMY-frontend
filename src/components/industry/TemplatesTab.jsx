@@ -81,6 +81,12 @@ function displayOutputQuantity(node) {
     return node.outputQuantity ? number(node.outputQuantity) : '-'
 }
 
+function displaySdeClassification(node) {
+    const category = node.categoryName || 'Unknown Category'
+    const group = node.groupName || 'Unknown Group'
+    return `${category} > ${group}`
+}
+
 function parseOptionalInteger(value) {
     if (value === '' || value == null) return null
     const parsed = Number(value)
@@ -439,8 +445,21 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                         <DecisionButtons value={decision} onChange={onDecisionChange} />
                     </>
                 ) : (
-                    <div className="col-span-5 flex items-center justify-end text-[10px] text-foreground-dim font-bold uppercase tracking-wider">
-                        Acquire Material
+                    <div className="col-span-5 flex items-center justify-between gap-2 min-w-0">
+                        <div className="min-w-0">
+                            <div className="text-[8px] text-foreground-dim font-bold uppercase tracking-wider">
+                                Category / Group
+                            </div>
+                            <div
+                                className="text-[10px] text-foreground-muted font-semibold truncate"
+                                title={displaySdeClassification(node)}
+                            >
+                                {displaySdeClassification(node)}
+                            </div>
+                        </div>
+                        <div className="shrink-0 text-[10px] text-foreground-dim font-bold uppercase tracking-wider">
+                            Acquire Material
+                        </div>
                     </div>
                 )}
             </div>
