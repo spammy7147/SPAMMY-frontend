@@ -102,6 +102,17 @@ function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = 
     return result
 }
 
+function collectBuildableNodeKeysByTier(node, depth = 0, result = new Map()) {
+    if (!node) return result
+    if (hasBuildableChildren(node)) {
+        const nodeKeys = result.get(depth) || []
+        nodeKeys.push(node.nodeKey)
+        result.set(depth, nodeKeys)
+    }
+    ;(node.children || []).forEach((child) => collectBuildableNodeKeysByTier(child, depth + 1, result))
+    return result
+}
+
 function buildTierLayout(node, decisionsByNodeKey) {
     const nodes = []
     const edges = []
@@ -268,6 +279,42 @@ function DecisionButtons({ value, onChange }) {
                     {decision.label}
                 </button>
             ))}
+        </div>
+    )
+}
+
+function TierBulkControls({ bomTree, onTierDecisionChange }) {
+    const tiers = useMemo(
+        () => Array.from(collectBuildableNodeKeysByTier(bomTree).entries()).sort(([left], [right]) => left - right),
+        [bomTree],
+    )
+
+    if (!bomTree || tiers.length === 0) return null
+
+    return (
+        <div className="bg-card border border-border rounded overflow-hidden">
+            <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-1">
+                <div className="text-[10px] text-foreground-dim uppercase tracking-wider font-bold">
+                    Tier Bulk
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {tiers.map(([tier, nodeKeys]) => (
+                        <div
+                            key={tier}
+                            className="grid grid-cols-[52px_162px] items-center gap-1 rounded-[3px] border border-border bg-background/50 px-2 py-1"
+                        >
+                            <div className="text-[10px] text-foreground-muted font-bold">
+                                T{tier}
+                                <span className="ml-1 text-foreground-dim font-mono">{nodeKeys.length}</span>
+                            </div>
+                            <DecisionButtons
+                                value=""
+                                onChange={(decision) => onTierDecisionChange(nodeKeys, decision)}
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     )
 }
@@ -881,6 +928,13 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setDecisionsByNodeKey((current) => ({ ...current, [nodeKey]: decision }))
     }
 
+    const setTierDecision = (nodeKeys, decision) => {
+        setDecisionsByNodeKey((current) => ({
+            ...current,
+            ...Object.fromEntries(nodeKeys.map((nodeKey) => [nodeKey, decision])),
+        }))
+    }
+
     const setNodeSetting = (nodeKey, field, value) => {
         setNodeSettingsByNodeKey((current) => ({
             ...current,
@@ -994,6 +1048,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         {saving ? 'Saving...' : 'Save Template'}
                     </button>
                 </div>
+                <TierBulkControls bomTree={bomTree} onTierDecisionChange={setTierDecision} />
                 <BomTree
                     bomTree={bomTree}
                     decisionsByNodeKey={decisionsByNodeKey}
