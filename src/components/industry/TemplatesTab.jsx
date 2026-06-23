@@ -1002,7 +1002,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         {calculating ? 'Calculating...' : 'Calculate'}
                     </button>
                 </div>
-                <div className="grid grid-cols-[140px_minmax(0,1fr)_220px] gap-3 items-center px-3 py-2 border-b border-border max-xl:grid-cols-1">
+                <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-3 items-center px-3 py-2 border-b border-border max-xl:grid-cols-1">
                     <input
                         value={editor.name}
                         onChange={updateEditor('name')}
@@ -1014,10 +1014,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         onChange={updateEditor('description')}
                         className="bg-muted border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
                         placeholder="Description"
-                    />
-                    <DecisionButtons
-                        value={editor.defaultDecision}
-                        onChange={(decision) => setEditor((current) => ({ ...current, defaultDecision: decision }))}
                     />
                 </div>
                 <FacilitySettings
