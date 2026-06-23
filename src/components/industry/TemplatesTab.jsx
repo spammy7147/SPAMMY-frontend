@@ -207,6 +207,7 @@ function FacilitySettings({
     facilityLoading,
     structureRigOptions,
     structureRigLoading,
+    structureRigError,
     hasSelectedSystem,
     onSystemOpenChange,
     onSystemQueryChange,
@@ -286,7 +287,9 @@ function FacilitySettings({
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                         disabled={structureRigLoading}
                     >
-                        <option value="">{structureRigLoading ? 'Loading rigs...' : 'No rig'}</option>
+                        <option value="">
+                            {structureRigLoading ? 'Loading rigs...' : structureRigError ? 'Rig load failed' : 'No rig'}
+                        </option>
                         {structureRigOptions.map((rig) => (
                             <option key={rig.typeId} value={String(rig.typeId)}>
                                 {rig.typeName}
@@ -294,6 +297,9 @@ function FacilitySettings({
                         ))}
                         <option value="custom">Custom / manual bonus</option>
                     </select>
+                    {structureRigError && (
+                        <span className="text-destructive text-[10px] font-semibold">{structureRigError}</span>
+                    )}
                 </label>
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
@@ -780,6 +786,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [facilityLoading, setFacilityLoading] = useState(false)
     const [structureRigOptions, setStructureRigOptions] = useState([])
     const [structureRigLoading, setStructureRigLoading] = useState(false)
+    const [structureRigError, setStructureRigError] = useState(null)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -864,12 +871,15 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     useEffect(() => {
         let mounted = true
         setStructureRigLoading(true)
+        setStructureRigError(null)
         industryApi.structureRigs()
             .then((rigs) => {
                 if (mounted) setStructureRigOptions(rigs || [])
             })
-            .catch(() => {
-                if (mounted) setStructureRigOptions([])
+            .catch((err) => {
+                if (!mounted) return
+                setStructureRigOptions([])
+                setStructureRigError(err.message || 'Failed to load rigs')
             })
             .finally(() => {
                 if (mounted) setStructureRigLoading(false)
@@ -1086,6 +1096,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     facilityLoading={facilityLoading}
                     structureRigOptions={structureRigOptions}
                     structureRigLoading={structureRigLoading}
+                    structureRigError={structureRigError}
                     hasSelectedSystem={Boolean(selectedSystem)}
                     onSystemOpenChange={setSystemDropdownOpen}
                     onSystemQueryChange={updateSystemQuery}
