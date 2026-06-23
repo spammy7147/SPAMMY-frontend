@@ -8,30 +8,27 @@ const decisions = [
     { label: '구매', value: 'PURCHASE' },
 ]
 
-const facilityRows = [
-    { id: 'manufacturing', label: 'Manufacturing', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
-    { id: 'component', label: 'Component', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
-    { id: 'reaction', label: 'Reaction', defaultBonus: '2.2', defaultCost: '', defaultTax: '10' },
-    { id: 'fuel', label: 'Fuel', defaultBonus: '5.158', defaultCost: '3', defaultTax: '10' },
+const industryRigOptions = [
+    { label: 'No rig', value: '', bonus: '0' },
+    { label: 'Manufacturing material rig', value: 'manufacturing-material', bonus: '5.158' },
+    { label: 'Component material rig', value: 'component-material', bonus: '5.158' },
+    { label: 'Reaction material rig', value: 'reaction-material', bonus: '2.2' },
+    { label: 'Fuel block material rig', value: 'fuel-material', bonus: '5.158' },
+    { label: 'Custom / manual bonus', value: 'custom', bonus: '' },
 ]
 
 function countNodes(template) {
     return (template.nodes || []).length
 }
 
-function initialFacilityState() {
-    return Object.fromEntries(
-        facilityRows.map((row) => [
-            row.id,
-            {
-                index: '0.14',
-                structure: '',
-                bonus: row.defaultBonus,
-                cost: row.defaultCost,
-                tax: row.defaultTax,
-            },
-        ]),
-    )
+function initialIndustrySettings() {
+    return {
+        index: '0.14',
+        structure: '',
+        rig: '',
+        bonus: '0',
+        tax: '10',
+    }
 }
 
 function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettingsByNodeKey = {}) {
@@ -192,71 +189,107 @@ function facilityTypeLabel(type) {
     return type || 'Facility'
 }
 
-function FacilitySettings({ facilities, facilityOptions, facilityLoading, hasSelectedSystem, onChange }) {
+function FacilitySettings({
+    settings,
+    systemQuery,
+    systemResults,
+    systemSearching,
+    systemDropdownOpen,
+    facilityOptions,
+    facilityLoading,
+    hasSelectedSystem,
+    onSystemOpenChange,
+    onSystemQueryChange,
+    onSystemSelect,
+    onChange,
+}) {
+    const selectedRig = industryRigOptions.find((rig) => rig.value === settings.rig)
+    const bonusReadOnly = selectedRig?.value !== 'custom'
+
     return (
-        <div className="bg-card border border-border rounded overflow-hidden">
-            {facilityRows.map((row) => {
-                const values = facilities[row.id]
-                return (
-                    <div key={row.id} className="grid grid-cols-[120px_90px_minmax(120px,1fr)_110px_90px_90px] gap-2 items-center px-3 py-2 border-b border-border last:border-b-0 text-[12px] max-xl:grid-cols-2">
-                        <div className="text-foreground font-extrabold">{row.label}</div>
-                        <label className="flex items-center gap-1">
-                            <span className="text-foreground-dim text-[10px]">Index</span>
-                            <input
-                                value={values.index}
-                                onChange={(event) => onChange(row.id, 'index', event.target.value)}
-                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
-                            />
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <span className="text-foreground-dim text-[10px]">Structure</span>
-                            <select
-                                value={values.structure}
-                                onChange={(event) => onChange(row.id, 'structure', event.target.value)}
-                                className="w-full bg-muted border border-border text-foreground px-2 py-1 rounded-[3px] outline-none"
-                                disabled={!hasSelectedSystem || facilityLoading}
-                            >
-                                <option value="">
-                                    {!hasSelectedSystem
-                                        ? 'Select system first'
-                                        : facilityLoading
-                                            ? 'Loading facilities...'
-                                            : 'Select facility'}
-                                </option>
-                                {facilityOptions.map((facility) => (
-                                    <option key={`${facility.facilityType}-${facility.facilityId}`} value={String(facility.facilityId)}>
-                                        {facility.facilityName} [{facilityTypeLabel(facility.facilityType)}]
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <span className="text-foreground-dim text-[10px]">Bonus</span>
-                            <input
-                                value={values.bonus}
-                                onChange={(event) => onChange(row.id, 'bonus', event.target.value)}
-                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
-                            />
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <span className="text-foreground-dim text-[10px]">Cost</span>
-                            <input
-                                value={values.cost}
-                                onChange={(event) => onChange(row.id, 'cost', event.target.value)}
-                                className="w-full bg-foreground-dim/20 border border-border text-foreground px-2 py-1 rounded-[3px] outline-none"
-                            />
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <span className="text-foreground-dim text-[10px]">Tax</span>
-                            <input
-                                value={values.tax}
-                                onChange={(event) => onChange(row.id, 'tax', event.target.value)}
-                                className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-1 rounded-[3px] outline-none"
-                            />
-                        </label>
-                    </div>
-                )
-            })}
+        <div className="bg-card border border-border rounded">
+            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-2xl:grid-cols-3 max-lg:grid-cols-1">
+                <div className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">System</span>
+                    <SystemSearchInput
+                        query={systemQuery}
+                        results={systemResults}
+                        searching={systemSearching}
+                        open={systemDropdownOpen}
+                        onOpenChange={onSystemOpenChange}
+                        onQueryChange={onSystemQueryChange}
+                        onSelect={onSystemSelect}
+                    />
+                </div>
+                <label className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Index</span>
+                    <input
+                        value={settings.index}
+                        onChange={(event) => onChange('index', event.target.value)}
+                        className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
+                    />
+                </label>
+                <label className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Structure</span>
+                    <select
+                        value={settings.structure}
+                        onChange={(event) => onChange('structure', event.target.value)}
+                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
+                        disabled={!hasSelectedSystem || facilityLoading}
+                    >
+                        <option value="">
+                            {!hasSelectedSystem
+                                ? 'Select system first'
+                                : facilityLoading
+                                    ? 'Loading facilities...'
+                                    : 'Select facility'}
+                        </option>
+                        {facilityOptions.map((facility) => (
+                            <option key={`${facility.facilityType}-${facility.facilityId}`} value={String(facility.facilityId)}>
+                                {facility.facilityName} [{facilityTypeLabel(facility.facilityType)}]
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
+                    <select
+                        value={settings.rig}
+                        onChange={(event) => {
+                            const rig = industryRigOptions.find((option) => option.value === event.target.value)
+                            onChange('rig', event.target.value)
+                            onChange('bonus', rig?.bonus ?? '')
+                        }}
+                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
+                    >
+                        {industryRigOptions.map((rig) => (
+                            <option key={rig.value} value={rig.value}>
+                                {rig.label}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
+                    <input
+                        value={settings.bonus}
+                        onChange={(event) => onChange('bonus', event.target.value)}
+                        readOnly={bonusReadOnly}
+                        className={cn(
+                            'w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none',
+                            bonusReadOnly && 'cursor-default',
+                        )}
+                    />
+                </label>
+                <label className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Tax</span>
+                    <input
+                        value={settings.tax}
+                        onChange={(event) => onChange('tax', event.target.value)}
+                        className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
+                    />
+                </label>
+            </div>
         </div>
     )
 }
@@ -706,7 +739,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         system: '',
         defaultDecision: 'AUTO',
     })
-    const [facilities, setFacilities] = useState(initialFacilityState)
+    const [industrySettings, setIndustrySettings] = useState(initialIndustrySettings)
     const [bomTree, setBomTree] = useState(null)
     const [decisionsByNodeKey, setDecisionsByNodeKey] = useState({})
     const [blueprintResults, setBlueprintResults] = useState([])
@@ -852,32 +885,21 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const updateSystemQuery = (query) => {
         setSelectedSystem(null)
         setFacilityOptions([])
-        setFacilities((current) =>
-            Object.fromEntries(
-                Object.entries(current).map(([key, value]) => [key, { ...value, structure: '' }]),
-            ),
-        )
+        setIndustrySettings((current) => ({ ...current, structure: '' }))
         setEditor((current) => ({ ...current, system: query }))
     }
 
     const selectSystem = (system) => {
         setSelectedSystem(system)
         setSystemResults([])
-        setFacilities((current) =>
-            Object.fromEntries(
-                Object.entries(current).map(([key, value]) => [key, { ...value, structure: '' }]),
-            ),
-        )
+        setIndustrySettings((current) => ({ ...current, structure: '' }))
         setEditor((current) => ({ ...current, system: system.systemName }))
     }
 
-    const updateFacility = (section, field, value) => {
-        setFacilities((current) => ({
+    const updateIndustrySetting = (field, value) => {
+        setIndustrySettings((current) => ({
             ...current,
-            [section]: {
-                ...current[section],
-                [field]: value,
-            },
+            [field]: value,
         }))
     }
 
@@ -947,8 +969,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     return (
         <div className="flex flex-col gap-4">
-            <form onSubmit={calculate} className="bg-card border border-border rounded overflow-hidden">
-                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_minmax(140px,1fr)_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+            <form onSubmit={calculate} className="bg-card border border-border rounded">
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
                     <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
@@ -985,15 +1007,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                             className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
                         />
                     </label>
-                    <SystemSearchInput
-                        query={editor.system}
-                        results={systemResults}
-                        searching={systemSearching}
-                        open={systemDropdownOpen}
-                        onOpenChange={setSystemDropdownOpen}
-                        onQueryChange={updateSystemQuery}
-                        onSelect={selectSystem}
-                    />
                     <button
                         type="submit"
                         disabled={!canCalculate || calculating}
@@ -1017,11 +1030,18 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     />
                 </div>
                 <FacilitySettings
-                    facilities={facilities}
+                    settings={industrySettings}
+                    systemQuery={editor.system}
+                    systemResults={systemResults}
+                    systemSearching={systemSearching}
+                    systemDropdownOpen={systemDropdownOpen}
                     facilityOptions={facilityOptions}
                     facilityLoading={facilityLoading}
                     hasSelectedSystem={Boolean(selectedSystem)}
-                    onChange={updateFacility}
+                    onSystemOpenChange={setSystemDropdownOpen}
+                    onSystemQueryChange={updateSystemQuery}
+                    onSystemSelect={selectSystem}
+                    onChange={updateIndustrySetting}
                 />
             </form>
 
