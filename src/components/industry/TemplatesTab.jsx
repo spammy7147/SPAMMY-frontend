@@ -305,7 +305,6 @@ function TierBulkControls({ bomTree, onTierDecisionChange }) {
                         >
                             <div className="text-[10px] text-foreground-muted font-bold">
                                 T{tier}
-                                <span className="ml-1 text-foreground-dim font-mono">{nodeKeys.length}</span>
                             </div>
                             <DecisionButtons
                                 value=""
