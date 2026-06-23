@@ -8,15 +8,6 @@ const decisions = [
     { label: '구매', value: 'PURCHASE' },
 ]
 
-const industryRigOptions = [
-    { label: 'No rig', value: '', bonus: '0' },
-    { label: 'Manufacturing material rig', value: 'manufacturing-material', bonus: '5.158' },
-    { label: 'Component material rig', value: 'component-material', bonus: '5.158' },
-    { label: 'Reaction material rig', value: 'reaction-material', bonus: '2.2' },
-    { label: 'Fuel block material rig', value: 'fuel-material', bonus: '5.158' },
-    { label: 'Custom / manual bonus', value: 'custom', bonus: '' },
-]
-
 function parseBonus(value) {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : 0
@@ -28,6 +19,10 @@ function formatBonus(value) {
 
 function resolveTotalBonus(structureBonus, rigBonus) {
     return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+}
+
+function findStructureRig(structureRigOptions, value) {
+    return structureRigOptions.find((rig) => String(rig.typeId) === value)
 }
 
 function countNodes(template) {
@@ -210,18 +205,19 @@ function FacilitySettings({
     systemDropdownOpen,
     facilityOptions,
     facilityLoading,
+    structureRigOptions,
+    structureRigLoading,
     hasSelectedSystem,
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
     onChange,
 }) {
-    const selectedRig = industryRigOptions.find((rig) => rig.value === settings.rig)
-    const bonusReadOnly = selectedRig?.value !== 'custom'
+    const bonusReadOnly = settings.rig !== 'custom'
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-2xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
@@ -250,7 +246,7 @@ function FacilitySettings({
                             const facility = facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
-                            const rig = industryRigOptions.find((option) => option.value === settings.rig)
+                            const rig = findStructureRig(structureRigOptions, settings.rig)
                             onChange('structure', event.target.value)
                             if (settings.rig !== 'custom') {
                                 onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
@@ -278,7 +274,7 @@ function FacilitySettings({
                     <select
                         value={settings.rig}
                         onChange={(event) => {
-                            const rig = industryRigOptions.find((option) => option.value === event.target.value)
+                            const rig = findStructureRig(structureRigOptions, event.target.value)
                             const facility = facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
@@ -288,12 +284,15 @@ function FacilitySettings({
                             }
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
+                        disabled={structureRigLoading}
                     >
-                        {industryRigOptions.map((rig) => (
-                            <option key={rig.value} value={rig.value}>
-                                {rig.label}
+                        <option value="">{structureRigLoading ? 'Loading rigs...' : 'No rig'}</option>
+                        {structureRigOptions.map((rig) => (
+                            <option key={rig.typeId} value={String(rig.typeId)}>
+                                {rig.typeName}
                             </option>
                         ))}
+                        <option value="custom">Custom / manual bonus</option>
                     </select>
                 </label>
                 <label className="flex flex-col gap-1">
@@ -779,6 +778,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
     const [facilityOptions, setFacilityOptions] = useState([])
     const [facilityLoading, setFacilityLoading] = useState(false)
+    const [structureRigOptions, setStructureRigOptions] = useState([])
+    const [structureRigLoading, setStructureRigLoading] = useState(false)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -859,6 +860,25 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
         }
     }, [editor.system, systemCache, systemDropdownOpen])
+
+    useEffect(() => {
+        let mounted = true
+        setStructureRigLoading(true)
+        industryApi.structureRigs()
+            .then((rigs) => {
+                if (mounted) setStructureRigOptions(rigs || [])
+            })
+            .catch(() => {
+                if (mounted) setStructureRigOptions([])
+            })
+            .finally(() => {
+                if (mounted) setStructureRigLoading(false)
+            })
+
+        return () => {
+            mounted = false
+        }
+    }, [])
 
     useEffect(() => {
         if (!selectedSystem?.systemId) {
@@ -1064,6 +1084,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     systemDropdownOpen={systemDropdownOpen}
                     facilityOptions={facilityOptions}
                     facilityLoading={facilityLoading}
+                    structureRigOptions={structureRigOptions}
+                    structureRigLoading={structureRigLoading}
                     hasSelectedSystem={Boolean(selectedSystem)}
                     onSystemOpenChange={setSystemDropdownOpen}
                     onSystemQueryChange={updateSystemQuery}
