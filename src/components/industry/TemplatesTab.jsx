@@ -301,15 +301,17 @@ function TierBulkControls({ bomTree, onTierDecisionChange }) {
                     {tiers.map(([tier, nodeKeys]) => (
                         <div
                             key={tier}
-                            className="flex flex-col gap-1 rounded-[3px] border border-border bg-background/50 px-2 py-1"
+                            className="flex flex-col rounded-[3px] border border-border bg-background/50 overflow-hidden"
                         >
-                            <div className="text-[10px] text-foreground-muted font-bold leading-none">
+                            <div className="px-2 py-1 text-center text-[10px] text-foreground-muted font-bold leading-none border-b border-border bg-muted/40">
                                 T{tier}
                             </div>
-                            <DecisionButtons
-                                value=""
-                                onChange={(decision) => onTierDecisionChange(nodeKeys, decision)}
-                            />
+                            <div className="px-2 py-1">
+                                <DecisionButtons
+                                    value=""
+                                    onChange={(decision) => onTierDecisionChange(nodeKeys, decision)}
+                                />
+                            </div>
                         </div>
                     ))}
                 </div>
