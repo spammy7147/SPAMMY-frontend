@@ -221,7 +221,7 @@ function FacilitySettings({
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-2xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
