@@ -92,6 +92,12 @@ function displaySdeClassification(node) {
     return `${category} > ${group}`
 }
 
+function displayRigFamily(family) {
+    if (family === 'ENGINEERING') return 'Engineering'
+    if (family === 'RESOURCE_PROCESSING') return 'Resource Processing'
+    return 'Other'
+}
+
 function parseOptionalInteger(value) {
     if (value === '' || value == null) return null
     const parsed = Number(value)
@@ -208,10 +214,14 @@ function FacilitySettings({
     structureRigOptions,
     structureRigLoading,
     structureRigError,
+    structureRigQuery,
+    structureRigDropdownOpen,
     hasSelectedSystem,
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
+    onStructureRigOpenChange,
+    onStructureRigQueryChange,
     onChange,
 }) {
     const bonusReadOnly = settings.rig !== 'custom'
@@ -272,34 +282,42 @@ function FacilitySettings({
                 </label>
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
-                    <select
-                        value={settings.rig}
-                        onChange={(event) => {
-                            const rig = findStructureRig(structureRigOptions, event.target.value)
+                    <StructureRigSearchInput
+                        query={structureRigQuery}
+                        results={structureRigOptions}
+                        searching={structureRigLoading}
+                        error={structureRigError}
+                        open={structureRigDropdownOpen}
+                        onOpenChange={onStructureRigOpenChange}
+                        onQueryChange={(query) => {
                             const facility = facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
-                            onChange('rig', event.target.value)
-                            if (event.target.value !== 'custom') {
-                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
-                            }
+                            onStructureRigQueryChange(query)
+                            onChange('rig', '')
+                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, 0))
                         }}
-                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
-                        disabled={structureRigLoading}
-                    >
-                        <option value="">
-                            {structureRigLoading ? 'Loading rigs...' : structureRigError ? 'Rig load failed' : 'No rig'}
-                        </option>
-                        {structureRigOptions.map((rig) => (
-                            <option key={rig.typeId} value={String(rig.typeId)}>
-                                {rig.typeName}
-                            </option>
-                        ))}
-                        <option value="custom">Custom / manual bonus</option>
-                    </select>
-                    {structureRigError && (
-                        <span className="text-destructive text-[10px] font-semibold">{structureRigError}</span>
-                    )}
+                        onSelect={(rig) => {
+                            const facility = facilityOptions.find(
+                                (option) => String(option.facilityId) === settings.structure,
+                            )
+                            onStructureRigQueryChange(rig.typeName)
+                            onChange('rig', String(rig.typeId))
+                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
+                        }}
+                        onNoRig={() => {
+                            const facility = facilityOptions.find(
+                                (option) => String(option.facilityId) === settings.structure,
+                            )
+                            onStructureRigQueryChange('')
+                            onChange('rig', '')
+                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, 0))
+                        }}
+                        onCustom={() => {
+                            onStructureRigQueryChange('Custom / manual bonus')
+                            onChange('rig', 'custom')
+                        }}
+                    />
                 </label>
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
@@ -322,6 +340,129 @@ function FacilitySettings({
                     />
                 </label>
             </div>
+        </div>
+    )
+}
+
+function StructureRigSearchInput({
+    query,
+    results,
+    searching,
+    error,
+    open,
+    onOpenChange,
+    onQueryChange,
+    onSelect,
+    onNoRig,
+    onCustom,
+}) {
+    const normalizedQuery = query.trim().toLowerCase()
+    const filteredResults = normalizedQuery
+        ? results.filter((rig) => {
+            const searchableText = [
+                rig.typeName,
+                rig.groupName,
+                displayRigFamily(rig.rigFamily),
+            ].join(' ').toLowerCase()
+            return searchableText.includes(normalizedQuery)
+        })
+        : results
+    const groupedResults = filteredResults.reduce((groups, rig) => {
+        const family = rig.rigFamily || 'UNKNOWN'
+        if (!groups.has(family)) groups.set(family, [])
+        groups.get(family).push(rig)
+        return groups
+    }, new Map())
+    const familyOrder = ['ENGINEERING', 'RESOURCE_PROCESSING', 'UNKNOWN']
+    const orderedFamilies = familyOrder.filter((family) => groupedResults.has(family))
+    const showResults = open && !error
+
+    return (
+        <div className="relative">
+            <div className="flex bg-background border border-border rounded-[3px] focus-within:border-secondary">
+                <input
+                    value={query}
+                    onFocus={() => onOpenChange(true)}
+                    onChange={(event) => {
+                        onOpenChange(true)
+                        onQueryChange(event.target.value)
+                    }}
+                    className="min-w-0 flex-1 bg-transparent border-none text-foreground text-[12px] px-3 py-2 outline-none"
+                    placeholder={error ? 'Rig load failed' : 'No rig'}
+                    disabled={searching}
+                />
+                <button
+                    type="button"
+                    onClick={() => onOpenChange(!open)}
+                    className="w-8 border-none border-l border-border bg-transparent text-foreground-dim cursor-pointer hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Toggle rig dropdown"
+                    disabled={searching}
+                >
+                    ▾
+                </button>
+            </div>
+            {searching && (
+                <div className="absolute right-10 top-2 text-[10px] text-foreground-dim font-bold">
+                    LOAD
+                </div>
+            )}
+            {error && (
+                <span className="mt-1 block text-destructive text-[10px] font-semibold">{error}</span>
+            )}
+            {showResults && (
+                <div className="absolute z-20 mt-1 w-full max-h-[320px] overflow-y-auto bg-card border border-border rounded shadow-xl">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onNoRig()
+                            onOpenChange(false)
+                        }}
+                        className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border"
+                    >
+                        <div className="text-[12px] text-foreground font-bold">No rig</div>
+                    </button>
+                    {orderedFamilies.map((family) => (
+                        <div key={family}>
+                            <div className="sticky top-0 bg-muted border-b border-border px-3 py-1 text-[10px] text-foreground-dim font-bold uppercase tracking-wide">
+                                {displayRigFamily(family)}
+                            </div>
+                            {groupedResults.get(family).map((rig) => (
+                                <button
+                                    key={rig.typeId}
+                                    type="button"
+                                    onClick={() => {
+                                        onSelect(rig)
+                                        onOpenChange(false)
+                                    }}
+                                    className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
+                                >
+                                    <div className="text-[12px] text-foreground font-bold leading-snug">
+                                        {rig.typeName}
+                                    </div>
+                                    <div className="text-[10px] text-foreground-dim leading-snug">
+                                        {rig.groupName}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onCustom()
+                            onOpenChange(false)
+                        }}
+                        className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-t border-border"
+                    >
+                        <div className="text-[12px] text-foreground font-bold">Custom / manual bonus</div>
+                    </button>
+                </div>
+            )}
+            {open && !searching && !error && filteredResults.length === 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded px-3 py-3 text-[11px] text-foreground-dim shadow-xl">
+                    NO RIGS
+                </div>
+            )}
         </div>
     )
 }
@@ -787,6 +928,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [structureRigOptions, setStructureRigOptions] = useState([])
     const [structureRigLoading, setStructureRigLoading] = useState(false)
     const [structureRigError, setStructureRigError] = useState(null)
+    const [structureRigQuery, setStructureRigQuery] = useState('')
+    const [structureRigDropdownOpen, setStructureRigDropdownOpen] = useState(false)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -1097,10 +1240,14 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     structureRigOptions={structureRigOptions}
                     structureRigLoading={structureRigLoading}
                     structureRigError={structureRigError}
+                    structureRigQuery={structureRigQuery}
+                    structureRigDropdownOpen={structureRigDropdownOpen}
                     hasSelectedSystem={Boolean(selectedSystem)}
                     onSystemOpenChange={setSystemDropdownOpen}
                     onSystemQueryChange={updateSystemQuery}
                     onSystemSelect={selectSystem}
+                    onStructureRigOpenChange={setStructureRigDropdownOpen}
+                    onStructureRigQueryChange={setStructureRigQuery}
                     onChange={updateIndustrySetting}
                 />
             </form>
