@@ -9,11 +9,19 @@ const decisions = [
 ]
 
 const industryRigOptions = [
-    { label: 'No rig', value: '', bonus: '0' },
-    { label: 'Manufacturing material rig', value: 'manufacturing-material', bonus: '5.158' },
-    { label: 'Component material rig', value: 'component-material', bonus: '5.158' },
-    { label: 'Reaction material rig', value: 'reaction-material', bonus: '2.2' },
-    { label: 'Fuel block material rig', value: 'fuel-material', bonus: '5.158' },
+    { label: 'No modifier', value: '', bonus: '0' },
+    { label: "Zainou 'Beancounter' Industry BX-801", value: '27170', bonus: '1' },
+    { label: "Zainou 'Beancounter' Industry BX-802", value: '27167', bonus: '2' },
+    { label: "Zainou 'Beancounter' Industry BX-804", value: '27171', bonus: '4' },
+    { label: "Zainou 'Beancounter' Research RR-601", value: '27180', bonus: '1' },
+    { label: "Zainou 'Beancounter' Research RR-603", value: '27177', bonus: '3' },
+    { label: "Zainou 'Beancounter' Research RR-605", value: '27179', bonus: '5' },
+    { label: "Zainou 'Beancounter' Metallurgy MY-701", value: '27182', bonus: '1' },
+    { label: "Zainou 'Beancounter' Metallurgy MY-703", value: '27176', bonus: '3' },
+    { label: "Zainou 'Beancounter' Metallurgy MY-705", value: '27181', bonus: '5' },
+    { label: "Zainou 'Beancounter' Reprocessing RX-801", value: '27175', bonus: '1' },
+    { label: "Zainou 'Beancounter' Reprocessing RX-802", value: '27169', bonus: '2' },
+    { label: "Zainou 'Beancounter' Reprocessing RX-804", value: '27174', bonus: '4' },
     { label: 'Custom / manual bonus', value: 'custom', bonus: '' },
 ]
 
@@ -274,7 +282,7 @@ function FacilitySettings({
                     </select>
                 </label>
                 <label className="flex flex-col gap-1">
-                    <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
+                    <span className="text-foreground-dim text-[10px] font-bold">Modifier</span>
                     <select
                         value={settings.rig}
                         onChange={(event) => {
