@@ -2,6 +2,16 @@ import { fetchApi } from './api'
 
 export const industryApi = {
     templates: () => fetchApi('/api/industry/templates'),
+    manufacturingBlueprints: (query, limit = 10) => fetchApi(
+        `/api/industry/blueprints/manufacturing?query=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
+    systems: (query, limit = 10) => fetchApi(
+        `/api/industry/systems?query=${encodeURIComponent(query)}&limit=${limit}`,
+    ),
+    facilities: (systemId) => fetchApi(`/api/industry/systems/${systemId}/facilities`),
+    manufacturingBom: (targetTypeId, quantity) => fetchApi(
+        `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
+    ),
     createTemplate: (payload) => fetchApi('/api/industry/templates', {
         method: 'POST',
         body: JSON.stringify(payload),
