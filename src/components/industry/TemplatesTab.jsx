@@ -8,23 +8,6 @@ const decisions = [
     { label: '구매', value: 'PURCHASE' },
 ]
 
-const industryRigOptions = [
-    { label: 'No modifier', value: '', bonus: '0' },
-    { label: "Zainou 'Beancounter' Industry BX-801", value: '27170', bonus: '1' },
-    { label: "Zainou 'Beancounter' Industry BX-802", value: '27167', bonus: '2' },
-    { label: "Zainou 'Beancounter' Industry BX-804", value: '27171', bonus: '4' },
-    { label: "Zainou 'Beancounter' Research RR-601", value: '27180', bonus: '1' },
-    { label: "Zainou 'Beancounter' Research RR-603", value: '27177', bonus: '3' },
-    { label: "Zainou 'Beancounter' Research RR-605", value: '27179', bonus: '5' },
-    { label: "Zainou 'Beancounter' Metallurgy MY-701", value: '27182', bonus: '1' },
-    { label: "Zainou 'Beancounter' Metallurgy MY-703", value: '27176', bonus: '3' },
-    { label: "Zainou 'Beancounter' Metallurgy MY-705", value: '27181', bonus: '5' },
-    { label: "Zainou 'Beancounter' Reprocessing RX-801", value: '27175', bonus: '1' },
-    { label: "Zainou 'Beancounter' Reprocessing RX-802", value: '27169', bonus: '2' },
-    { label: "Zainou 'Beancounter' Reprocessing RX-804", value: '27174', bonus: '4' },
-    { label: 'Custom / manual bonus', value: 'custom', bonus: '' },
-]
-
 function parseBonus(value) {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : 0
@@ -36,6 +19,10 @@ function formatBonus(value) {
 
 function resolveTotalBonus(structureBonus, rigBonus) {
     return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+}
+
+function findStructureRig(structureRigOptions, value) {
+    return structureRigOptions.find((rig) => String(rig.typeId) === value)
 }
 
 function countNodes(template) {
@@ -218,14 +205,15 @@ function FacilitySettings({
     systemDropdownOpen,
     facilityOptions,
     facilityLoading,
+    structureRigOptions,
+    structureRigLoading,
     hasSelectedSystem,
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
     onChange,
 }) {
-    const selectedRig = industryRigOptions.find((rig) => rig.value === settings.rig)
-    const bonusReadOnly = selectedRig?.value !== 'custom'
+    const bonusReadOnly = settings.rig !== 'custom'
 
     return (
         <div className="bg-card border border-border rounded">
@@ -258,7 +246,7 @@ function FacilitySettings({
                             const facility = facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
-                            const rig = industryRigOptions.find((option) => option.value === settings.rig)
+                            const rig = findStructureRig(structureRigOptions, settings.rig)
                             onChange('structure', event.target.value)
                             if (settings.rig !== 'custom') {
                                 onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
@@ -282,11 +270,11 @@ function FacilitySettings({
                     </select>
                 </label>
                 <label className="flex flex-col gap-1">
-                    <span className="text-foreground-dim text-[10px] font-bold">Modifier</span>
+                    <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
                     <select
                         value={settings.rig}
                         onChange={(event) => {
-                            const rig = industryRigOptions.find((option) => option.value === event.target.value)
+                            const rig = findStructureRig(structureRigOptions, event.target.value)
                             const facility = facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
@@ -296,12 +284,15 @@ function FacilitySettings({
                             }
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
+                        disabled={structureRigLoading}
                     >
-                        {industryRigOptions.map((rig) => (
-                            <option key={rig.value} value={rig.value}>
-                                {rig.label}
+                        <option value="">{structureRigLoading ? 'Loading rigs...' : 'No rig'}</option>
+                        {structureRigOptions.map((rig) => (
+                            <option key={rig.typeId} value={String(rig.typeId)}>
+                                {rig.typeName}
                             </option>
                         ))}
+                        <option value="custom">Custom / manual bonus</option>
                     </select>
                 </label>
                 <label className="flex flex-col gap-1">
@@ -787,6 +778,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
     const [facilityOptions, setFacilityOptions] = useState([])
     const [facilityLoading, setFacilityLoading] = useState(false)
+    const [structureRigOptions, setStructureRigOptions] = useState([])
+    const [structureRigLoading, setStructureRigLoading] = useState(false)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -867,6 +860,25 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
         }
     }, [editor.system, systemCache, systemDropdownOpen])
+
+    useEffect(() => {
+        let mounted = true
+        setStructureRigLoading(true)
+        industryApi.structureRigs()
+            .then((rigs) => {
+                if (mounted) setStructureRigOptions(rigs || [])
+            })
+            .catch(() => {
+                if (mounted) setStructureRigOptions([])
+            })
+            .finally(() => {
+                if (mounted) setStructureRigLoading(false)
+            })
+
+        return () => {
+            mounted = false
+        }
+    }, [])
 
     useEffect(() => {
         if (!selectedSystem?.systemId) {
@@ -1072,6 +1084,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     systemDropdownOpen={systemDropdownOpen}
                     facilityOptions={facilityOptions}
                     facilityLoading={facilityLoading}
+                    structureRigOptions={structureRigOptions}
+                    structureRigLoading={structureRigLoading}
                     hasSelectedSystem={Boolean(selectedSystem)}
                     onSystemOpenChange={setSystemDropdownOpen}
                     onSystemQueryChange={updateSystemQuery}

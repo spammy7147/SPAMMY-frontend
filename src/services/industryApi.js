@@ -9,6 +9,7 @@ export const industryApi = {
         `/api/industry/systems?query=${encodeURIComponent(query)}&limit=${limit}`,
     ),
     facilities: (systemId) => fetchApi(`/api/industry/systems/${systemId}/facilities`),
+    structureRigs: () => fetchApi('/api/industry/structure-rigs'),
     manufacturingBom: (targetTypeId, quantity) => fetchApi(
         `/api/industry/bom/manufacturing?targetTypeId=${targetTypeId}&quantity=${quantity}`,
     ),
