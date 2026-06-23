@@ -17,6 +17,19 @@ const industryRigOptions = [
     { label: 'Custom / manual bonus', value: 'custom', bonus: '' },
 ]
 
+function parseBonus(value) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
+function formatBonus(value) {
+    return Number(value.toFixed(3)).toString()
+}
+
+function resolveTotalBonus(structureBonus, rigBonus) {
+    return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+}
+
 function countNodes(template) {
     return (template.nodes || []).length
 }
@@ -233,7 +246,16 @@ function FacilitySettings({
                     <span className="text-foreground-dim text-[10px] font-bold">Structure</span>
                     <select
                         value={settings.structure}
-                        onChange={(event) => onChange('structure', event.target.value)}
+                        onChange={(event) => {
+                            const facility = facilityOptions.find(
+                                (option) => String(option.facilityId) === event.target.value,
+                            )
+                            const rig = industryRigOptions.find((option) => option.value === settings.rig)
+                            onChange('structure', event.target.value)
+                            if (settings.rig !== 'custom') {
+                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
+                            }
+                        }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                         disabled={!hasSelectedSystem || facilityLoading}
                     >
@@ -257,8 +279,13 @@ function FacilitySettings({
                         value={settings.rig}
                         onChange={(event) => {
                             const rig = industryRigOptions.find((option) => option.value === event.target.value)
+                            const facility = facilityOptions.find(
+                                (option) => String(option.facilityId) === settings.structure,
+                            )
                             onChange('rig', event.target.value)
-                            onChange('bonus', rig?.bonus ?? '')
+                            if (event.target.value !== 'custom') {
+                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
+                            }
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                     >
