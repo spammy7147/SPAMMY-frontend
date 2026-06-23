@@ -301,9 +301,9 @@ function TierBulkControls({ bomTree, onTierDecisionChange }) {
                     {tiers.map(([tier, nodeKeys]) => (
                         <div
                             key={tier}
-                            className="grid grid-cols-[52px_162px] items-center gap-1 rounded-[3px] border border-border bg-background/50 px-2 py-1"
+                            className="flex flex-col gap-1 rounded-[3px] border border-border bg-background/50 px-2 py-1"
                         >
-                            <div className="text-[10px] text-foreground-muted font-bold">
+                            <div className="text-[10px] text-foreground-muted font-bold leading-none">
                                 T{tier}
                             </div>
                             <DecisionButtons
