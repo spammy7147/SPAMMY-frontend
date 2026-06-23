@@ -29,14 +29,26 @@ function countNodes(template) {
     return (template.nodes || []).length
 }
 
-function initialIndustrySettings() {
+function createFacilitySetting(id) {
     return {
+        id,
         index: '0.14',
+        systemQuery: '',
+        selectedSystem: null,
+        systemDropdownOpen: false,
+        facilityOptions: [],
+        facilityLoading: false,
         structure: '',
         rig: '',
+        structureRigQuery: '',
+        structureRigDropdownOpen: false,
         bonus: '0',
         tax: '10',
     }
+}
+
+function nextFacilitySettingId() {
+    return `facility-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettingsByNodeKey = {}) {
@@ -179,7 +191,39 @@ function number(value) {
     return Number(value || 0).toLocaleString()
 }
 
-function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey) {
+function parseOptionalLong(value) {
+    if (value === '' || value == null) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
+    return facilitySettings
+        .filter((settings) => settings.selectedSystem?.systemId)
+        .map((settings, index) => {
+            const facility = settings.facilityOptions.find(
+                (option) => String(option.facilityId) === settings.structure,
+            )
+            const rig = findStructureRig(structureRigOptions, settings.rig)
+
+            return {
+                sortOrder: index,
+                systemId: settings.selectedSystem.systemId,
+                systemName: settings.selectedSystem.systemName,
+                facilityId: parseOptionalLong(settings.structure),
+                facilityName: facility?.facilityName || null,
+                facilityType: facility?.facilityType || null,
+                structureRigTypeId: rig?.typeId || null,
+                structureRigName: rig?.typeName || (settings.rig === 'custom' ? settings.structureRigQuery : null),
+                structureRigFamily: rig?.rigFamily || null,
+                industryIndex: settings.index || null,
+                bonus: settings.bonus || null,
+                tax: settings.tax || null,
+            }
+        })
+}
+
+function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, facilitySettings, structureRigOptions) {
     const nodes = flattenBom(bomTree, decisionsByNodeKey, null, nodeSettingsByNodeKey)
     const target = nodes[0]
 
@@ -194,6 +238,7 @@ function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsB
             },
         ],
         nodes,
+        facilitySettings: buildFacilitySettingsPayload(facilitySettings, structureRigOptions),
     }
 }
 
@@ -205,37 +250,34 @@ function facilityTypeLabel(type) {
 
 function FacilitySettings({
     settings,
-    systemQuery,
     systemResults,
     systemSearching,
-    systemDropdownOpen,
-    facilityOptions,
-    facilityLoading,
     structureRigOptions,
     structureRigLoading,
     structureRigError,
-    structureRigQuery,
-    structureRigDropdownOpen,
-    hasSelectedSystem,
+    canRemove,
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
     onStructureRigOpenChange,
     onStructureRigQueryChange,
     onChange,
+    onAdd,
+    onRemove,
 }) {
     const bonusReadOnly = settings.rig !== 'custom'
+    const hasSelectedSystem = Boolean(settings.selectedSystem)
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(220px,1fr)_110px_90px_74px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
-                        query={systemQuery}
+                        query={settings.systemQuery}
                         results={systemResults}
                         searching={systemSearching}
-                        open={systemDropdownOpen}
+                        open={settings.systemDropdownOpen}
                         onOpenChange={onSystemOpenChange}
                         onQueryChange={onSystemQueryChange}
                         onSelect={onSystemSelect}
@@ -254,7 +296,7 @@ function FacilitySettings({
                     <select
                         value={settings.structure}
                         onChange={(event) => {
-                            const facility = facilityOptions.find(
+                            const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
                             const rig = findStructureRig(structureRigOptions, settings.rig)
@@ -264,16 +306,16 @@ function FacilitySettings({
                             }
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
-                        disabled={!hasSelectedSystem || facilityLoading}
+                        disabled={!hasSelectedSystem || settings.facilityLoading}
                     >
                         <option value="">
                             {!hasSelectedSystem
                                 ? 'Select system first'
-                                : facilityLoading
+                                : settings.facilityLoading
                                     ? 'Loading facilities...'
                                     : 'Select facility'}
                         </option>
-                        {facilityOptions.map((facility) => (
+                        {settings.facilityOptions.map((facility) => (
                             <option key={`${facility.facilityType}-${facility.facilityId}`} value={String(facility.facilityId)}>
                                 {facility.facilityName} [{facilityTypeLabel(facility.facilityType)}]
                             </option>
@@ -283,14 +325,14 @@ function FacilitySettings({
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
                     <StructureRigSearchInput
-                        query={structureRigQuery}
+                        query={settings.structureRigQuery}
                         results={structureRigOptions}
                         searching={structureRigLoading}
                         error={structureRigError}
-                        open={structureRigDropdownOpen}
+                        open={settings.structureRigDropdownOpen}
                         onOpenChange={onStructureRigOpenChange}
                         onQueryChange={(query) => {
-                            const facility = facilityOptions.find(
+                            const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
                             onStructureRigQueryChange(query)
@@ -298,7 +340,7 @@ function FacilitySettings({
                             onChange('bonus', resolveTotalBonus(facility?.structureBonus, 0))
                         }}
                         onSelect={(rig) => {
-                            const facility = facilityOptions.find(
+                            const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
                             onStructureRigQueryChange(rig.typeName)
@@ -306,7 +348,7 @@ function FacilitySettings({
                             onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
                         }}
                         onNoRig={() => {
-                            const facility = facilityOptions.find(
+                            const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === settings.structure,
                             )
                             onStructureRigQueryChange('')
@@ -339,6 +381,26 @@ function FacilitySettings({
                         className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
                     />
                 </label>
+                <div className="flex gap-1">
+                    <button
+                        type="button"
+                        onClick={onAdd}
+                        className="h-[34px] flex-1 bg-secondary/20 border border-secondary text-secondary rounded-[3px] text-sm font-extrabold cursor-pointer hover:bg-secondary/30"
+                        aria-label="Add facility setting"
+                    >
+                        +
+                    </button>
+                    {canRemove && (
+                        <button
+                            type="button"
+                            onClick={onRemove}
+                            className="h-[34px] flex-1 bg-muted border border-border text-foreground-dim rounded-[3px] text-sm font-extrabold cursor-pointer hover:text-foreground"
+                            aria-label="Remove facility setting"
+                        >
+                            -
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     )
@@ -909,27 +971,20 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         quantity: '1',
         me: '10',
         te: '20',
-        system: '',
         defaultDecision: 'AUTO',
     })
-    const [industrySettings, setIndustrySettings] = useState(initialIndustrySettings)
+    const [facilitySettings, setFacilitySettings] = useState(() => [createFacilitySetting('facility-1')])
     const [bomTree, setBomTree] = useState(null)
     const [decisionsByNodeKey, setDecisionsByNodeKey] = useState({})
     const [blueprintResults, setBlueprintResults] = useState([])
     const [selectedBlueprint, setSelectedBlueprint] = useState(null)
     const [blueprintSearching, setBlueprintSearching] = useState(false)
-    const [systemResults, setSystemResults] = useState([])
     const [systemCache, setSystemCache] = useState(null)
-    const [selectedSystem, setSelectedSystem] = useState(null)
     const [systemSearching, setSystemSearching] = useState(false)
-    const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
-    const [facilityOptions, setFacilityOptions] = useState([])
-    const [facilityLoading, setFacilityLoading] = useState(false)
+    const [shouldLoadSystems, setShouldLoadSystems] = useState(false)
     const [structureRigOptions, setStructureRigOptions] = useState([])
     const [structureRigLoading, setStructureRigLoading] = useState(false)
     const [structureRigError, setStructureRigError] = useState(null)
-    const [structureRigQuery, setStructureRigQuery] = useState('')
-    const [structureRigDropdownOpen, setStructureRigDropdownOpen] = useState(false)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -974,19 +1029,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     }, [editor.blueprintQuery, selectedBlueprint])
 
     useEffect(() => {
-        if (!systemDropdownOpen) {
-            setSystemResults([])
-            setSystemSearching(false)
-            return undefined
-        }
-
-        if (systemCache) {
-            const query = editor.system.trim().toLowerCase()
-            const filteredSystems = query
-                ? systemCache.filter((system) => system.systemName.toLowerCase().includes(query))
-                : systemCache
-            setSystemResults(filteredSystems)
-            setSystemSearching(false)
+        if (!shouldLoadSystems || systemCache) {
             return undefined
         }
 
@@ -994,13 +1037,10 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSystemSearching(true)
         industryApi.systems('', 10000)
             .then((results) => {
-                if (!mounted) return
-                const systems = results || []
-                setSystemCache(systems)
-                setSystemResults(systems)
+                if (mounted) setSystemCache(results || [])
             })
             .catch(() => {
-                if (mounted) setSystemResults([])
+                if (mounted) setSystemCache([])
             })
             .finally(() => {
                 if (mounted) setSystemSearching(false)
@@ -1009,7 +1049,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         return () => {
             mounted = false
         }
-    }, [editor.system, systemCache, systemDropdownOpen])
+    }, [shouldLoadSystems, systemCache])
 
     useEffect(() => {
         let mounted = true
@@ -1032,30 +1072,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
         }
     }, [])
-
-    useEffect(() => {
-        if (!selectedSystem?.systemId) {
-            setFacilityOptions([])
-            return undefined
-        }
-
-        let mounted = true
-        setFacilityLoading(true)
-        industryApi.facilities(selectedSystem.systemId)
-            .then((facilities) => {
-                if (mounted) setFacilityOptions(facilities || [])
-            })
-            .catch(() => {
-                if (mounted) setFacilityOptions([])
-            })
-            .finally(() => {
-                if (mounted) setFacilityLoading(false)
-            })
-
-        return () => {
-            mounted = false
-        }
-    }, [selectedSystem])
 
     const updateBlueprintQuery = (query) => {
         setSelectedBlueprint(null)
@@ -1082,25 +1098,85 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }))
     }
 
-    const updateSystemQuery = (query) => {
-        setSelectedSystem(null)
-        setFacilityOptions([])
-        setIndustrySettings((current) => ({ ...current, structure: '' }))
-        setEditor((current) => ({ ...current, system: query }))
+    const updateFacilitySetting = (settingId, field, value) => {
+        setFacilitySettings((current) => current.map((settings) => (
+            settings.id === settingId ? { ...settings, [field]: value } : settings
+        )))
     }
 
-    const selectSystem = (system) => {
-        setSelectedSystem(system)
-        setSystemResults([])
-        setIndustrySettings((current) => ({ ...current, structure: '' }))
-        setEditor((current) => ({ ...current, system: system.systemName }))
+    const patchFacilitySetting = (settingId, patch) => {
+        setFacilitySettings((current) => current.map((settings) => (
+            settings.id === settingId ? { ...settings, ...patch } : settings
+        )))
     }
 
-    const updateIndustrySetting = (field, value) => {
-        setIndustrySettings((current) => ({
-            ...current,
-            [field]: value,
-        }))
+    const addFacilitySetting = () => {
+        setFacilitySettings((current) => [...current, createFacilitySetting(nextFacilitySettingId())])
+    }
+
+    const removeFacilitySetting = (settingId) => {
+        setFacilitySettings((current) => {
+            if (current.length <= 1) return current
+            return current.filter((settings) => settings.id !== settingId)
+        })
+    }
+
+    const updateFacilitySystemQuery = (settingId, query) => {
+        patchFacilitySetting(settingId, {
+            systemQuery: query,
+            selectedSystem: null,
+            structure: '',
+            facilityOptions: [],
+            facilityLoading: false,
+        })
+    }
+
+    const selectFacilitySystem = (settingId, system) => {
+        patchFacilitySetting(settingId, {
+            systemQuery: system.systemName,
+            selectedSystem: system,
+            systemDropdownOpen: false,
+            structure: '',
+            facilityOptions: [],
+            facilityLoading: true,
+        })
+
+        industryApi.facilities(system.systemId)
+            .then((facilities) => {
+                setFacilitySettings((current) => current.map((settings) => (
+                    settings.id === settingId && settings.selectedSystem?.systemId === system.systemId
+                        ? { ...settings, facilityOptions: facilities || [], facilityLoading: false }
+                        : settings
+                )))
+            })
+            .catch(() => {
+                setFacilitySettings((current) => current.map((settings) => (
+                    settings.id === settingId && settings.selectedSystem?.systemId === system.systemId
+                        ? { ...settings, facilityOptions: [], facilityLoading: false }
+                        : settings
+                )))
+            })
+    }
+
+    const setFacilitySystemOpen = (settingId, open) => {
+        if (open) setShouldLoadSystems(true)
+        patchFacilitySetting(settingId, { systemDropdownOpen: open })
+    }
+
+    const setFacilityRigOpen = (settingId, open) => {
+        patchFacilitySetting(settingId, { structureRigDropdownOpen: open })
+    }
+
+    const updateFacilityRigQuery = (settingId, query) => {
+        updateFacilitySetting(settingId, 'structureRigQuery', query)
+    }
+
+    const filteredSystems = (query) => {
+        const systems = systemCache || []
+        const normalizedQuery = query.trim().toLowerCase()
+        return normalizedQuery
+            ? systems.filter((system) => system.systemName.toLowerCase().includes(normalizedQuery))
+            : systems
     }
 
     const canCalculate = Number(editor.typeId) > 0 && Number(editor.quantity) > 0
@@ -1133,7 +1209,14 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSaving(true)
         setError(null)
         try {
-            const payload = buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey)
+            const payload = buildTemplatePayload(
+                editor,
+                bomTree,
+                decisionsByNodeKey,
+                nodeSettingsByNodeKey,
+                facilitySettings,
+                structureRigOptions,
+            )
             const created = await industryApi.createTemplate(payload)
             onTemplateCreated(created)
             setEditor((current) => ({ ...current, name: '', description: '' }))
@@ -1229,27 +1312,28 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         placeholder="Description"
                     />
                 </div>
-                <FacilitySettings
-                    settings={industrySettings}
-                    systemQuery={editor.system}
-                    systemResults={systemResults}
-                    systemSearching={systemSearching}
-                    systemDropdownOpen={systemDropdownOpen}
-                    facilityOptions={facilityOptions}
-                    facilityLoading={facilityLoading}
-                    structureRigOptions={structureRigOptions}
-                    structureRigLoading={structureRigLoading}
-                    structureRigError={structureRigError}
-                    structureRigQuery={structureRigQuery}
-                    structureRigDropdownOpen={structureRigDropdownOpen}
-                    hasSelectedSystem={Boolean(selectedSystem)}
-                    onSystemOpenChange={setSystemDropdownOpen}
-                    onSystemQueryChange={updateSystemQuery}
-                    onSystemSelect={selectSystem}
-                    onStructureRigOpenChange={setStructureRigDropdownOpen}
-                    onStructureRigQueryChange={setStructureRigQuery}
-                    onChange={updateIndustrySetting}
-                />
+                <div className="flex flex-col gap-1">
+                    {facilitySettings.map((settings) => (
+                        <FacilitySettings
+                            key={settings.id}
+                            settings={settings}
+                            systemResults={filteredSystems(settings.systemQuery)}
+                            systemSearching={systemSearching}
+                            structureRigOptions={structureRigOptions}
+                            structureRigLoading={structureRigLoading}
+                            structureRigError={structureRigError}
+                            canRemove={facilitySettings.length > 1}
+                            onSystemOpenChange={(open) => setFacilitySystemOpen(settings.id, open)}
+                            onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
+                            onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
+                            onStructureRigOpenChange={(open) => setFacilityRigOpen(settings.id, open)}
+                            onStructureRigQueryChange={(query) => updateFacilityRigQuery(settings.id, query)}
+                            onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
+                            onAdd={addFacilitySetting}
+                            onRemove={() => removeFacilitySetting(settings.id)}
+                        />
+                    ))}
+                </div>
             </form>
 
             {error && (
