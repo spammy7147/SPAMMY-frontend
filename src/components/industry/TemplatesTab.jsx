@@ -541,7 +541,7 @@ function BlueprintSearchInput({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                placeholder="Jackdaw"
+                placeholder="Enter the item you want to produce"
             />
             {searching && (
                 <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
@@ -1170,8 +1170,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     return (
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded">
-                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
-                    <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Product</div>
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                    <div className="flex items-center justify-center text-center text-sm text-foreground font-extrabold">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
                         results={blueprintResults}
