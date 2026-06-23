@@ -495,9 +495,6 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                 ) : (
                     <div className="col-span-5 flex items-center justify-between gap-2 min-w-0">
                         <div className="min-w-0">
-                            <div className="text-[8px] text-foreground-dim font-bold uppercase tracking-wider">
-                                Category / Group
-                            </div>
                             <div
                                 className="text-[10px] text-foreground-muted font-semibold truncate"
                                 title={displaySdeClassification(node)}
