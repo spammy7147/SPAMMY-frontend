@@ -531,7 +531,7 @@ function DecisionButtons({ value, onChange }) {
                     type="button"
                     onClick={() => onChange(decision.value)}
                     className={cn(
-                        'border text-[8px] px-1 py-[1px] rounded-[2px] cursor-pointer font-bold leading-none transition-colors',
+                        'border text-[9px] px-1 py-1 rounded-[2px] cursor-pointer font-bold leading-none transition-colors',
                         value === decision.value
                             ? 'bg-secondary/20 border-secondary text-secondary'
                             : 'bg-transparent border-border text-foreground-dim hover:text-foreground-muted',
