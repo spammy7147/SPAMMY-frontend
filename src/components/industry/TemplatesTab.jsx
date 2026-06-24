@@ -140,12 +140,15 @@ function collectBuildableNodeKeysByTier(node, depth = 0, result = new Map()) {
 function buildTierLayout(node, decisionsByNodeKey) {
     const nodes = []
     const edges = []
-    let row = 0
+    const rowByDepth = new Map()
     let maxDepth = 0
+    let maxRow = 0
 
     function walk(current, depth, parent = null) {
-        const currentRow = row
+        const currentRow = rowByDepth.get(depth) || 0
+        rowByDepth.set(depth, currentRow + 1)
         maxDepth = Math.max(maxDepth, depth)
+        maxRow = Math.max(maxRow, currentRow + 1)
         nodes.push({ node: current, depth, row: currentRow })
 
         if (parent) {
@@ -158,11 +161,6 @@ function buildTierLayout(node, decisionsByNodeKey) {
         }
 
         const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
-        if (children.length === 0) {
-            row += 1
-            return
-        }
-
         children.forEach((child) => walk(child, depth + 1, current))
     }
 
@@ -171,7 +169,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
         nodes,
         edges,
         columnCount: maxDepth + 1,
-        rowCount: Math.max(row, 1),
+        rowCount: Math.max(maxRow, 1),
     }
 }
 
@@ -773,7 +771,6 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
     const columnWidth = 380
     const rowHeight = 72
-    const treeContentHeight = 28 + layout.rowCount * rowHeight + 16
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -826,10 +823,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     }
 
     return (
-        <div
-            className="bg-background/40 border border-border rounded overflow-auto"
-            style={{ maxHeight: `min(${treeContentHeight}px, 64vh)` }}
-        >
+        <div className="bg-background/40 border border-border rounded overflow-x-auto">
             <div
                 ref={contentRef}
                 className="relative grid gap-x-3 gap-y-0 p-2 min-w-max"
