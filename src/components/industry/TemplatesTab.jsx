@@ -140,12 +140,19 @@ function collectBuildableNodeKeysByTier(node, depth = 0, result = new Map()) {
 function buildTierLayout(node, decisionsByNodeKey) {
     const nodes = []
     const edges = []
-    let row = 0
+    let leafRow = 0
     let maxDepth = 0
+    let maxRow = 0
 
     function walk(current, depth, parent = null) {
-        const currentRow = row
+        const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
+        const childRows = children.map((child) => walk(child, depth + 1, current))
+        const currentRow = childRows.length > 0
+            ? Math.round((childRows[0] + childRows[childRows.length - 1]) / 2)
+            : leafRow++
+
         maxDepth = Math.max(maxDepth, depth)
+        maxRow = Math.max(maxRow, currentRow)
         nodes.push({ node: current, depth, row: currentRow })
 
         if (parent) {
@@ -157,13 +164,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
             })
         }
 
-        const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
-        if (children.length === 0) {
-            row += 1
-            return
-        }
-
-        children.forEach((child) => walk(child, depth + 1, current))
+        return currentRow
     }
 
     if (node) walk(node, 0)
@@ -171,7 +172,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
         nodes,
         edges,
         columnCount: maxDepth + 1,
-        rowCount: Math.max(row, 1),
+        rowCount: Math.max(maxRow + 1, 1),
     }
 }
 
