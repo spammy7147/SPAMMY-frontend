@@ -705,29 +705,29 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
 
     return (
         <div className={cn(
-            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[420px] shadow-sm',
+            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[380px] shadow-sm',
             nodeBorderClass(decision, buildable),
         )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px_64px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_58px_48px_58px] gap-1.5 items-center bg-muted px-2 py-0.5 border-b border-border">
                 <div className="min-w-0">
-                    <div className="text-[12px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
+                    <div className="text-[11px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
                     </div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Need</div>
-                    <div className="text-[11px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
+                    <div className="text-[10px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Runs</div>
-                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Out/run</div>
-                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
                 </div>
             </div>
-            <div className="grid grid-cols-[22px_70px_22px_70px_minmax(0,1fr)] gap-1.5 items-center px-2.5 py-1.5">
+            <div className="grid grid-cols-[20px_58px_20px_58px_minmax(0,1fr)] gap-1.5 items-center px-2 py-1">
                 {buildable ? (
                     <>
                         <span className="text-[9px] text-foreground-dim font-bold">ME</span>
@@ -737,7 +737,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.materialEfficiency}
                                 onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                                className="w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0.5 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <span className="text-[9px] text-foreground-dim font-bold">TE</span>
@@ -747,7 +747,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.timeEfficiency}
                                 onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                                className="w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0.5 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <DecisionButtons value={decision} onChange={onDecisionChange} />
@@ -776,7 +776,9 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const contentRef = useRef(null)
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
-    const rowHeight = 88
+    const columnWidth = 380
+    const rowHeight = 72
+    const treeContentHeight = 28 + layout.rowCount * rowHeight + 16
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -829,12 +831,15 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     }
 
     return (
-        <div className="bg-background/40 border border-border rounded overflow-x-auto">
+        <div
+            className="bg-background/40 border border-border rounded overflow-auto"
+            style={{ maxHeight: `min(${treeContentHeight}px, 64vh)` }}
+        >
             <div
                 ref={contentRef}
-                className="relative grid gap-x-4 gap-y-0 p-3 min-w-max"
+                className="relative grid gap-x-3 gap-y-0 p-2 min-w-max"
                 style={{
-                    gridTemplateColumns: `repeat(${layout.columnCount}, 420px)`,
+                    gridTemplateColumns: `repeat(${layout.columnCount}, ${columnWidth}px)`,
                     gridTemplateRows: `28px repeat(${layout.rowCount}, ${rowHeight}px)`,
                 }}
             >
