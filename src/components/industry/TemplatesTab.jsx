@@ -753,17 +753,12 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                         <DecisionButtons value={decision} onChange={onDecisionChange} />
                     </>
                 ) : (
-                    <div className="col-span-5 flex items-center justify-between gap-2 min-w-0">
-                        <div className="min-w-0">
-                            <div
-                                className="text-[10px] text-foreground-muted font-semibold truncate"
-                                title={displaySdeClassification(node)}
-                            >
-                                {displaySdeClassification(node)}
-                            </div>
-                        </div>
-                        <div className="shrink-0 text-[10px] text-foreground-dim font-bold uppercase tracking-wider">
-                            Acquire Material
+                    <div className="col-span-5 min-w-0">
+                        <div
+                            className="text-[10px] text-foreground-muted font-semibold truncate"
+                            title={displaySdeClassification(node)}
+                        >
+                            {displaySdeClassification(node)}
                         </div>
                     </div>
                 )}
