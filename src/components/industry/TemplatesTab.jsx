@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { industryApi } from '@/services/industryApi'
 
@@ -262,7 +263,6 @@ function FacilitySettings({
     onStructureRigOpenChange,
     onStructureRigQueryChange,
     onChange,
-    onAdd,
     onRemove,
 }) {
     const bonusReadOnly = settings.rig !== 'custom'
@@ -270,7 +270,7 @@ function FacilitySettings({
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(220px,1fr)_110px_90px_74px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(220px,1fr)_110px_90px_36px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
@@ -382,22 +382,14 @@ function FacilitySettings({
                     />
                 </label>
                 <div className="flex gap-1">
-                    <button
-                        type="button"
-                        onClick={onAdd}
-                        className="h-[34px] flex-1 bg-secondary/20 border border-secondary text-secondary rounded-[3px] text-sm font-extrabold cursor-pointer hover:bg-secondary/30"
-                        aria-label="Add facility setting"
-                    >
-                        +
-                    </button>
                     {canRemove && (
                         <button
                             type="button"
                             onClick={onRemove}
-                            className="h-[34px] flex-1 bg-muted border border-border text-foreground-dim rounded-[3px] text-sm font-extrabold cursor-pointer hover:text-foreground"
+                            className="h-[34px] w-9 inline-flex items-center justify-center bg-muted border border-border text-foreground-dim rounded-[3px] cursor-pointer hover:text-foreground"
                             aria-label="Remove facility setting"
                         >
-                            -
+                            <Minus className="h-4 w-4" />
                         </button>
                     )}
                 </div>
@@ -1312,27 +1304,42 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         placeholder="Description"
                     />
                 </div>
-                <div className="flex flex-col gap-1">
-                    {facilitySettings.map((settings) => (
-                        <FacilitySettings
-                            key={settings.id}
-                            settings={settings}
-                            systemResults={filteredSystems(settings.systemQuery)}
-                            systemSearching={systemSearching}
-                            structureRigOptions={structureRigOptions}
-                            structureRigLoading={structureRigLoading}
-                            structureRigError={structureRigError}
-                            canRemove={facilitySettings.length > 1}
-                            onSystemOpenChange={(open) => setFacilitySystemOpen(settings.id, open)}
-                            onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
-                            onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
-                            onStructureRigOpenChange={(open) => setFacilityRigOpen(settings.id, open)}
-                            onStructureRigQueryChange={(query) => updateFacilityRigQuery(settings.id, query)}
-                            onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
-                            onAdd={addFacilitySetting}
-                            onRemove={() => removeFacilitySetting(settings.id)}
-                        />
-                    ))}
+                <div className="border-b border-border">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 bg-card border-b border-border">
+                        <div className="text-[11px] text-foreground-dim font-extrabold uppercase tracking-wide">
+                            Facility Settings
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addFacilitySetting}
+                            className="h-8 inline-flex items-center gap-1.5 bg-secondary/20 border border-secondary text-secondary rounded-[3px] px-3 text-[11px] font-extrabold cursor-pointer hover:bg-secondary/30"
+                            aria-label="Add facility setting"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Add
+                        </button>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        {facilitySettings.map((settings) => (
+                            <FacilitySettings
+                                key={settings.id}
+                                settings={settings}
+                                systemResults={filteredSystems(settings.systemQuery)}
+                                systemSearching={systemSearching}
+                                structureRigOptions={structureRigOptions}
+                                structureRigLoading={structureRigLoading}
+                                structureRigError={structureRigError}
+                                canRemove={facilitySettings.length > 1}
+                                onSystemOpenChange={(open) => setFacilitySystemOpen(settings.id, open)}
+                                onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
+                                onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
+                                onStructureRigOpenChange={(open) => setFacilityRigOpen(settings.id, open)}
+                                onStructureRigQueryChange={(query) => updateFacilityRigQuery(settings.id, query)}
+                                onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
+                                onRemove={() => removeFacilitySetting(settings.id)}
+                            />
+                        ))}
+                    </div>
                 </div>
             </form>
 
