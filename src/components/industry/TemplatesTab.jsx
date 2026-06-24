@@ -524,14 +524,14 @@ function StructureRigSearchInput({
 
 function DecisionButtons({ value, onChange }) {
     return (
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-0.5">
             {decisions.map((decision) => (
                 <button
                     key={decision.value}
                     type="button"
                     onClick={() => onChange(decision.value)}
                     className={cn(
-                        'border text-[9px] px-1.5 py-0.5 rounded-[2px] cursor-pointer font-bold transition-colors',
+                        'border text-[8px] px-1 py-[1px] rounded-[2px] cursor-pointer font-bold leading-none transition-colors',
                         value === decision.value
                             ? 'bg-secondary/20 border-secondary text-secondary'
                             : 'bg-transparent border-border text-foreground-dim hover:text-foreground-muted',
@@ -709,7 +709,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
             'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[380px] shadow-sm',
             nodeBorderClass(decision, buildable),
         )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_58px_48px_58px] gap-1.5 items-center bg-muted px-2 py-0.5 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_58px_44px_54px] gap-1.5 items-center bg-muted px-2 py-[2px] border-b border-border">
                 <div className="min-w-0">
                     <div className="text-[11px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
@@ -728,7 +728,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                     <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
                 </div>
             </div>
-            <div className="grid grid-cols-[20px_58px_20px_58px_minmax(0,1fr)] gap-1.5 items-center px-2 py-1">
+            <div className="grid grid-cols-[20px_58px_20px_58px_minmax(0,1fr)] gap-1.5 items-center px-2 py-[2px]">
                 {buildable ? (
                     <>
                         <span className="text-[9px] text-foreground-dim font-bold">ME</span>
@@ -738,7 +738,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.materialEfficiency}
                                 onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0.5 rounded-[3px] outline-none disabled:opacity-40"
+                                className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <span className="text-[9px] text-foreground-dim font-bold">TE</span>
@@ -748,7 +748,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.timeEfficiency}
                                 onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0.5 rounded-[3px] outline-none disabled:opacity-40"
+                                className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <DecisionButtons value={decision} onChange={onDecisionChange} />
@@ -773,7 +773,12 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
     const columnWidth = 380
-    const rowHeight = 72
+    const columnGap = 12
+    const gridPadding = 16
+    const tierHeaderHeight = 28
+    const rowHeight = 60
+    const gridWidth = (layout.columnCount * columnWidth) + (Math.max(layout.columnCount - 1, 0) * columnGap) + gridPadding
+    const gridHeight = tierHeaderHeight + (layout.rowCount * rowHeight) + gridPadding
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -799,8 +804,8 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
             })
 
             setConnectors({
-                width: content.scrollWidth,
-                height: content.scrollHeight,
+                width: gridWidth,
+                height: gridHeight,
                 paths,
             })
         }
@@ -815,7 +820,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
             resizeObserver.disconnect()
             window.removeEventListener('resize', drawConnectors)
         }
-    }, [layout])
+    }, [gridHeight, gridWidth, layout])
 
     if (!bomTree) {
         return (
@@ -832,7 +837,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
                 className="relative grid gap-x-3 gap-y-0 p-2 min-w-max"
                 style={{
                     gridTemplateColumns: `repeat(${layout.columnCount}, ${columnWidth}px)`,
-                    gridTemplateRows: `28px repeat(${layout.rowCount}, ${rowHeight}px)`,
+                    gridTemplateRows: `${tierHeaderHeight}px repeat(${layout.rowCount}, ${rowHeight}px)`,
                 }}
             >
                 <svg
