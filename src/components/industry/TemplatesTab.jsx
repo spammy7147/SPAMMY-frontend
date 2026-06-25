@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { industryApi } from '@/services/industryApi'
 
@@ -17,8 +18,37 @@ function formatBonus(value) {
     return Number(value.toFixed(3)).toString()
 }
 
+function formatIndex(value) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : '0'
+}
+
 function resolveTotalBonus(structureBonus, rigBonus) {
     return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+}
+
+function securityEffectValue(effect, securityBand) {
+    if (!effect) return 0
+    if (securityBand === 'LOWSEC') return parseBonus(effect.lowsecBonus)
+    if (securityBand === 'NULLSEC') return parseBonus(effect.nullsecBonus)
+    if (securityBand === 'WORMHOLE') return parseBonus(effect.wormholeBonus)
+    return parseBonus(effect.highsecBonus)
+}
+
+function resolveRigMaterialBonus(rig, facility, manufacturingTarget = null) {
+    if (!rig) return 0
+    const materialEffects = (rig.effects || []).filter((effect) => (
+        effect.effectType === 'MATERIAL_EFFICIENCY'
+        && (!manufacturingTarget || effect.target === manufacturingTarget || effect.target === 'UNKNOWN')
+    ))
+    if (manufacturingTarget && (rig.effects || []).length > 0 && materialEffects.length === 0) return 0
+    if (materialEffects.length === 0) return parseBonus(rig.bonus)
+    return Math.max(...materialEffects.map((effect) => securityEffectValue(effect, facility?.securityBand)))
+}
+
+function resolveTotalFacilityBonus(facility, rigs, manufacturingTarget = null) {
+    const rigBonus = rigs.reduce((total, rig) => total + resolveRigMaterialBonus(rig, facility, manufacturingTarget), 0)
+    return resolveTotalBonus(facility?.structureBonus, rigBonus)
 }
 
 function findStructureRig(structureRigOptions, value) {
@@ -29,14 +59,32 @@ function countNodes(template) {
     return (template.nodes || []).length
 }
 
-function initialIndustrySettings() {
+function createFacilitySetting(id) {
     return {
-        index: '0.14',
+        id,
+        index: '0',
+        systemQuery: '',
+        selectedSystem: null,
+        systemDropdownOpen: false,
+        facilityOptions: [],
+        facilityLoading: false,
         structure: '',
         rig: '',
+        rig2: '',
+        rig3: '',
+        structureRigQuery: '',
+        structureRigQuery2: '',
+        structureRigQuery3: '',
+        structureRigDropdownOpen: false,
+        structureRigDropdownOpen2: false,
+        structureRigDropdownOpen3: false,
         bonus: '0',
         tax: '10',
     }
+}
+
+function nextFacilitySettingId() {
+    return `facility-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettingsByNodeKey = {}) {
@@ -57,7 +105,7 @@ function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettings
             quantity: node.quantity,
             runsPerJob: node.runsPerJob || 1,
             decision,
-            facilityPresetId: null,
+            facilityPresetId: parseOptionalLong(nodeSettings.facilityPresetId),
             materialEfficiency: parseOptionalInteger(nodeSettings.materialEfficiency),
             timeEfficiency: parseOptionalInteger(nodeSettings.timeEfficiency),
         },
@@ -92,6 +140,12 @@ function displaySdeClassification(node) {
     return `${category} > ${group}`
 }
 
+function displayRigFamily(family) {
+    if (family === 'ENGINEERING') return 'Engineering'
+    if (family === 'RESOURCE_PROCESSING') return 'Resource Processing'
+    return 'Other'
+}
+
 function parseOptionalInteger(value) {
     if (value === '' || value == null) return null
     const parsed = Number(value)
@@ -101,8 +155,8 @@ function parseOptionalInteger(value) {
 function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = {}) {
     if (!node) return result
     result[node.nodeKey] = hasBuildableChildren(node)
-        ? { materialEfficiency, timeEfficiency }
-        : { materialEfficiency: '', timeEfficiency: '' }
+        ? { materialEfficiency, timeEfficiency, facilityPresetId: '' }
+        : { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }
     ;(node.children || []).forEach((child) => collectNodeSettings(child, materialEfficiency, timeEfficiency, result))
     return result
 }
@@ -121,12 +175,19 @@ function collectBuildableNodeKeysByTier(node, depth = 0, result = new Map()) {
 function buildTierLayout(node, decisionsByNodeKey) {
     const nodes = []
     const edges = []
-    let row = 0
+    let leafRow = 0
     let maxDepth = 0
+    let maxRow = 0
 
     function walk(current, depth, parent = null) {
-        const currentRow = row
+        const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
+        const childRows = children.map((child) => walk(child, depth + 1, current))
+        const currentRow = childRows.length > 0
+            ? Math.round((childRows[0] + childRows[childRows.length - 1]) / 2)
+            : leafRow++
+
         maxDepth = Math.max(maxDepth, depth)
+        maxRow = Math.max(maxRow, currentRow)
         nodes.push({ node: current, depth, row: currentRow })
 
         if (parent) {
@@ -138,13 +199,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
             })
         }
 
-        const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
-        if (children.length === 0) {
-            row += 1
-            return
-        }
-
-        children.forEach((child) => walk(child, depth + 1, current))
+        return currentRow
     }
 
     if (node) walk(node, 0)
@@ -152,7 +207,7 @@ function buildTierLayout(node, decisionsByNodeKey) {
         nodes,
         edges,
         columnCount: maxDepth + 1,
-        rowCount: Math.max(row, 1),
+        rowCount: Math.max(maxRow + 1, 1),
     }
 }
 
@@ -173,7 +228,77 @@ function number(value) {
     return Number(value || 0).toLocaleString()
 }
 
-function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey) {
+function parseOptionalLong(value) {
+    if (value === '' || value == null) return null
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+}
+
+function availableFacilitySettings(facilitySettings) {
+    return facilitySettings.filter((settings) => settings.selectedSystem?.systemId && settings.structure)
+}
+
+function selectedFacilityRigs(settings, structureRigOptions) {
+    return [settings.rig, settings.rig2, settings.rig3]
+        .map((value) => findStructureRig(structureRigOptions, value))
+        .filter(Boolean)
+}
+
+function selectedFacility(settings) {
+    return settings.facilityOptions.find((option) => String(option.facilityId) === settings.structure)
+}
+
+function recommendedFacilitySetting(facilitySettings, structureRigOptions, manufacturingTarget = null) {
+    return [...availableFacilitySettings(facilitySettings)]
+        .sort((left, right) => (
+            parseBonus(resolveTotalFacilityBonus(
+                selectedFacility(right),
+                selectedFacilityRigs(right, structureRigOptions),
+                manufacturingTarget,
+            ))
+            - parseBonus(resolveTotalFacilityBonus(
+                selectedFacility(left),
+                selectedFacilityRigs(left, structureRigOptions),
+                manufacturingTarget,
+            ))
+        ))[0]
+}
+
+function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
+    return facilitySettings
+        .filter((settings) => settings.selectedSystem?.systemId)
+        .map((settings, index) => {
+            const facility = settings.facilityOptions.find(
+                (option) => String(option.facilityId) === settings.structure,
+            )
+            const rig = findStructureRig(structureRigOptions, settings.rig)
+            const rig2 = findStructureRig(structureRigOptions, settings.rig2)
+            const rig3 = findStructureRig(structureRigOptions, settings.rig3)
+
+            return {
+                sortOrder: index,
+                systemId: settings.selectedSystem.systemId,
+                systemName: settings.selectedSystem.systemName,
+                facilityId: parseOptionalLong(settings.structure),
+                facilityName: facility?.facilityName || null,
+                facilityType: facility?.facilityType || null,
+                structureRigTypeId: rig?.typeId || null,
+                structureRigName: rig?.typeName || (settings.rig === 'custom' ? settings.structureRigQuery : null),
+                structureRigFamily: rig?.rigFamily || null,
+                structureRigTypeId2: rig2?.typeId || null,
+                structureRigName2: rig2?.typeName || (settings.rig2 === 'custom' ? settings.structureRigQuery2 : null),
+                structureRigFamily2: rig2?.rigFamily || null,
+                structureRigTypeId3: rig3?.typeId || null,
+                structureRigName3: rig3?.typeName || (settings.rig3 === 'custom' ? settings.structureRigQuery3 : null),
+                structureRigFamily3: rig3?.rigFamily || null,
+                industryIndex: settings.index || null,
+                bonus: settings.bonus || null,
+                tax: settings.tax || null,
+            }
+        })
+}
+
+function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, facilitySettings, structureRigOptions) {
     const nodes = flattenBom(bomTree, decisionsByNodeKey, null, nodeSettingsByNodeKey)
     const target = nodes[0]
 
@@ -188,6 +313,7 @@ function buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsB
             },
         ],
         nodes,
+        facilitySettings: buildFacilitySettingsPayload(facilitySettings, structureRigOptions),
     }
 }
 
@@ -199,32 +325,43 @@ function facilityTypeLabel(type) {
 
 function FacilitySettings({
     settings,
-    systemQuery,
     systemResults,
     systemSearching,
-    systemDropdownOpen,
-    facilityOptions,
-    facilityLoading,
     structureRigOptions,
     structureRigLoading,
-    hasSelectedSystem,
+    structureRigError,
+    canRemove,
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
     onChange,
+    onRemove,
 }) {
-    const bonusReadOnly = settings.rig !== 'custom'
+    const hasSelectedSystem = Boolean(settings.selectedSystem)
+    const selectedFacility = settings.facilityOptions.find(
+        (option) => String(option.facilityId) === settings.structure,
+    )
+    const rigSlots = [
+        { label: 'Rig 1', valueField: 'rig', queryField: 'structureRigQuery', openField: 'structureRigDropdownOpen' },
+        { label: 'Rig 2', valueField: 'rig2', queryField: 'structureRigQuery2', openField: 'structureRigDropdownOpen2' },
+        { label: 'Rig 3', valueField: 'rig3', queryField: 'structureRigQuery3', openField: 'structureRigDropdownOpen3' },
+    ]
+    const bonusReadOnly = !rigSlots.some((slot) => settings[slot.valueField] === 'custom')
+    const selectedRigs = rigSlots.map((slot) => findStructureRig(structureRigOptions, settings[slot.valueField]))
+    const updateBonus = (nextRigs = selectedRigs, facility = selectedFacility) => {
+        onChange('bonus', resolveTotalFacilityBonus(facility, nextRigs.filter(Boolean)))
+    }
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(180px,1fr)_90px_minmax(180px,1.2fr)_minmax(180px,1fr)_110px_90px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(260px,1.4fr)_110px_90px_36px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
-                        query={systemQuery}
+                        query={settings.systemQuery}
                         results={systemResults}
                         searching={systemSearching}
-                        open={systemDropdownOpen}
+                        open={settings.systemDropdownOpen}
                         onOpenChange={onSystemOpenChange}
                         onQueryChange={onSystemQueryChange}
                         onSelect={onSystemSelect}
@@ -234,8 +371,8 @@ function FacilitySettings({
                     <span className="text-foreground-dim text-[10px] font-bold">Index</span>
                     <input
                         value={settings.index}
-                        onChange={(event) => onChange('index', event.target.value)}
-                        className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
+                        readOnly
+                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none cursor-default"
                     />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -243,58 +380,71 @@ function FacilitySettings({
                     <select
                         value={settings.structure}
                         onChange={(event) => {
-                            const facility = facilityOptions.find(
+                            const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
-                            const rig = findStructureRig(structureRigOptions, settings.rig)
                             onChange('structure', event.target.value)
-                            if (settings.rig !== 'custom') {
-                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
-                            }
+                            updateBonus(selectedRigs, facility)
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
-                        disabled={!hasSelectedSystem || facilityLoading}
+                        disabled={!hasSelectedSystem || settings.facilityLoading}
                     >
                         <option value="">
                             {!hasSelectedSystem
                                 ? 'Select system first'
-                                : facilityLoading
+                                : settings.facilityLoading
                                     ? 'Loading facilities...'
                                     : 'Select facility'}
                         </option>
-                        {facilityOptions.map((facility) => (
+                        {settings.facilityOptions.map((facility) => (
                             <option key={`${facility.facilityType}-${facility.facilityId}`} value={String(facility.facilityId)}>
                                 {facility.facilityName} [{facilityTypeLabel(facility.facilityType)}]
                             </option>
                         ))}
                     </select>
                 </label>
-                <label className="flex flex-col gap-1">
-                    <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
-                    <select
-                        value={settings.rig}
-                        onChange={(event) => {
-                            const rig = findStructureRig(structureRigOptions, event.target.value)
-                            const facility = facilityOptions.find(
-                                (option) => String(option.facilityId) === settings.structure,
-                            )
-                            onChange('rig', event.target.value)
-                            if (event.target.value !== 'custom') {
-                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
-                            }
-                        }}
-                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
-                        disabled={structureRigLoading}
-                    >
-                        <option value="">{structureRigLoading ? 'Loading rigs...' : 'No rig'}</option>
-                        {structureRigOptions.map((rig) => (
-                            <option key={rig.typeId} value={String(rig.typeId)}>
-                                {rig.typeName}
-                            </option>
+                <div className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Rigs</span>
+                    <div className="grid grid-cols-3 gap-1 max-lg:grid-cols-1">
+                        {rigSlots.map((slot, slotIndex) => (
+                            <StructureRigSearchInput
+                                key={slot.valueField}
+                                query={settings[slot.queryField]}
+                                results={structureRigOptions}
+                                searching={structureRigLoading}
+                                error={structureRigError}
+                                open={settings[slot.openField]}
+                                onOpenChange={(open) => onChange(slot.openField, open)}
+                                onQueryChange={(query) => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = null
+                                    onChange(slot.queryField, query)
+                                    onChange(slot.valueField, '')
+                                    updateBonus(nextRigs)
+                                }}
+                                onSelect={(rig) => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = rig
+                                    onChange(slot.queryField, rig.typeName)
+                                    onChange(slot.valueField, String(rig.typeId))
+                                    updateBonus(nextRigs)
+                                }}
+                                onNoRig={() => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = null
+                                    onChange(slot.queryField, '')
+                                    onChange(slot.valueField, '')
+                                    updateBonus(nextRigs)
+                                }}
+                                onCustom={() => {
+                                    onChange(slot.queryField, 'Custom / manual bonus')
+                                    onChange(slot.valueField, 'custom')
+                                }}
+                                placeholder={slot.label}
+                            />
                         ))}
-                        <option value="custom">Custom / manual bonus</option>
-                    </select>
-                </label>
+                    </div>
+                </div>
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
                     <input
@@ -315,21 +465,159 @@ function FacilitySettings({
                         className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
                     />
                 </label>
+                <div className="flex gap-1">
+                    {canRemove && (
+                        <button
+                            type="button"
+                            onClick={onRemove}
+                            className="h-[34px] w-9 inline-flex items-center justify-center bg-muted border border-border text-foreground-dim rounded-[3px] cursor-pointer hover:text-foreground"
+                            aria-label="Remove facility setting"
+                        >
+                            <Minus className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
             </div>
+        </div>
+    )
+}
+
+function StructureRigSearchInput({
+    query,
+    results,
+    searching,
+    error,
+    open,
+    onOpenChange,
+    onQueryChange,
+    onSelect,
+    onNoRig,
+    onCustom,
+    placeholder = 'No rig',
+}) {
+    const normalizedQuery = query.trim().toLowerCase()
+    const filteredResults = normalizedQuery
+        ? results.filter((rig) => {
+            const searchableText = [
+                rig.typeName,
+                rig.groupName,
+                displayRigFamily(rig.rigFamily),
+            ].join(' ').toLowerCase()
+            return searchableText.includes(normalizedQuery)
+        })
+        : results
+    const groupedResults = filteredResults.reduce((groups, rig) => {
+        const family = rig.rigFamily || 'UNKNOWN'
+        if (!groups.has(family)) groups.set(family, [])
+        groups.get(family).push(rig)
+        return groups
+    }, new Map())
+    const familyOrder = ['ENGINEERING', 'RESOURCE_PROCESSING', 'UNKNOWN']
+    const orderedFamilies = familyOrder.filter((family) => groupedResults.has(family))
+    const showResults = open && !error
+
+    return (
+        <div className="relative">
+            <div className="flex bg-background border border-border rounded-[3px] focus-within:border-secondary">
+                <input
+                    value={query}
+                    onFocus={() => onOpenChange(true)}
+                    onChange={(event) => {
+                        onOpenChange(true)
+                        onQueryChange(event.target.value)
+                    }}
+                    className="min-w-0 flex-1 bg-transparent border-none text-foreground text-[12px] px-3 py-2 outline-none"
+                    placeholder={error ? 'Rig load failed' : placeholder}
+                    disabled={searching}
+                />
+                <button
+                    type="button"
+                    onClick={() => onOpenChange(!open)}
+                    className="w-8 border-none border-l border-border bg-transparent text-foreground-dim cursor-pointer hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="Toggle rig dropdown"
+                    disabled={searching}
+                >
+                    ▾
+                </button>
+            </div>
+            {searching && (
+                <div className="absolute right-10 top-2 text-[10px] text-foreground-dim font-bold">
+                    LOAD
+                </div>
+            )}
+            {error && (
+                <span className="mt-1 block text-destructive text-[10px] font-semibold">{error}</span>
+            )}
+            {showResults && (
+                <div className="absolute z-20 mt-1 w-full max-h-[320px] overflow-y-auto bg-card border border-border rounded shadow-xl">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onNoRig()
+                            onOpenChange(false)
+                        }}
+                        className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border"
+                    >
+                        <div className="text-[12px] text-foreground font-bold">No rig</div>
+                    </button>
+                    {orderedFamilies.map((family) => (
+                        <div key={family}>
+                            <div className="sticky top-0 bg-muted border-b border-border px-3 py-1 text-[10px] text-foreground-dim font-bold uppercase tracking-wide">
+                                {displayRigFamily(family)}
+                            </div>
+                            {groupedResults.get(family).map((rig) => (
+                                <button
+                                    key={rig.typeId}
+                                    type="button"
+                                    onClick={() => {
+                                        onSelect(rig)
+                                        onOpenChange(false)
+                                    }}
+                                    className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
+                                >
+                                    <div className="text-[12px] text-foreground font-bold leading-snug">
+                                        {rig.typeName}
+                                    </div>
+                                    <div className="text-[10px] text-foreground-dim leading-snug">
+                                        {[rig.size, rig.calibration ? `${rig.calibration} cal` : null, rig.groupName]
+                                            .filter(Boolean)
+                                            .join(' / ')}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onCustom()
+                            onOpenChange(false)
+                        }}
+                        className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-t border-border"
+                    >
+                        <div className="text-[12px] text-foreground font-bold">Custom / manual bonus</div>
+                    </button>
+                </div>
+            )}
+            {open && !searching && !error && filteredResults.length === 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded px-3 py-3 text-[11px] text-foreground-dim shadow-xl">
+                    NO RIGS
+                </div>
+            )}
         </div>
     )
 }
 
 function DecisionButtons({ value, onChange }) {
     return (
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-0.5">
             {decisions.map((decision) => (
                 <button
                     key={decision.value}
                     type="button"
                     onClick={() => onChange(decision.value)}
                     className={cn(
-                        'border text-[9px] px-1.5 py-0.5 rounded-[2px] cursor-pointer font-bold transition-colors',
+                        'border text-[9px] px-1 py-1 rounded-[2px] cursor-pointer font-bold leading-none transition-colors',
                         value === decision.value
                             ? 'bg-secondary/20 border-secondary text-secondary'
                             : 'bg-transparent border-border text-foreground-dim hover:text-foreground-muted',
@@ -394,7 +682,7 @@ function BlueprintSearchInput({
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 className="w-full bg-background border border-border text-foreground text-[12px] px-3 py-2 rounded-[3px] outline-none"
-                placeholder="Jackdaw"
+                placeholder="Enter the item you want to produce"
             />
             {searching && (
                 <div className="absolute right-2 top-2 text-[10px] text-foreground-dim font-bold">
@@ -469,6 +757,9 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
                             {system.securityStatus != null && (
                                 <div className="text-[10px] text-foreground-dim">
                                     Security {Number(system.securityStatus).toFixed(1)}
+                                    {system.manufacturingIndex != null
+                                        ? ` / MFG ${formatIndex(system.manufacturingIndex)}`
+                                        : ''}
                                 </div>
                             )}
                         </button>
@@ -498,35 +789,50 @@ function nodeBorderClass(decision, buildable) {
     return 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]'
 }
 
-function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange }) {
+function BomCard({
+    node,
+    decision,
+    settings,
+    facilitySettings,
+    structureRigOptions,
+    onDecisionChange,
+    onSettingsChange,
+}) {
     const buildable = hasBuildableChildren(node)
     const settingsDisabled = !buildable || decision === 'PURCHASE'
+    const facilityOptions = availableFacilitySettings(facilitySettings)
+    const recommendedFacility = recommendedFacilitySetting(
+        facilitySettings,
+        structureRigOptions,
+        node.manufacturingTarget,
+    )
+    const selectedFacilityId = settings.facilityPresetId || (recommendedFacility?.structure || '')
 
     return (
         <div className={cn(
-            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[420px] shadow-sm',
+            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[380px] shadow-sm',
             nodeBorderClass(decision, buildable),
         )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_64px_54px_64px] gap-2 items-center bg-muted px-2.5 py-1 border-b border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_58px_44px_54px] gap-1.5 items-center bg-muted px-2 py-[2px] border-b border-border">
                 <div className="min-w-0">
-                    <div className="text-[12px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
+                    <div className="text-[11px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
                     </div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Need</div>
-                    <div className="text-[11px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
+                    <div className="text-[10px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Runs</div>
-                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Out/run</div>
-                    <div className="text-[11px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
                 </div>
             </div>
-            <div className="grid grid-cols-[22px_70px_22px_70px_minmax(0,1fr)] gap-1.5 items-center px-2.5 py-1.5">
+            <div className="grid grid-cols-[20px_58px_20px_58px_minmax(0,1fr)] gap-1.5 items-center px-2 py-[2px]">
                 {buildable ? (
                     <>
                         <span className="text-[9px] text-foreground-dim font-bold">ME</span>
@@ -536,7 +842,7 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.materialEfficiency}
                                 onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                                className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <span className="text-[9px] text-foreground-dim font-bold">TE</span>
@@ -546,36 +852,68 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                                 value={settings.timeEfficiency}
                                 onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
                                 disabled={settingsDisabled}
-                                className="w-full bg-background border border-border text-foreground text-[11px] px-1.5 py-1 rounded-[3px] outline-none disabled:opacity-40"
+                                className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
                         </label>
                         <DecisionButtons value={decision} onChange={onDecisionChange} />
                     </>
                 ) : (
-                    <div className="col-span-5 flex items-center justify-between gap-2 min-w-0">
-                        <div className="min-w-0">
-                            <div
-                                className="text-[10px] text-foreground-muted font-semibold truncate"
-                                title={displaySdeClassification(node)}
-                            >
-                                {displaySdeClassification(node)}
-                            </div>
-                        </div>
-                        <div className="shrink-0 text-[10px] text-foreground-dim font-bold uppercase tracking-wider">
-                            Acquire Material
+                    <div className="col-span-5 min-w-0">
+                        <div
+                            className="text-[10px] text-foreground-muted font-semibold truncate"
+                            title={displaySdeClassification(node)}
+                        >
+                            {displaySdeClassification(node)}
                         </div>
                     </div>
                 )}
             </div>
+            {buildable && (
+                <div className="grid grid-cols-[44px_minmax(0,1fr)_58px] gap-1.5 items-center px-2 pb-2">
+                    <span className="text-[9px] text-foreground-dim font-bold">Facility</span>
+                    <select
+                        value={selectedFacilityId}
+                        onChange={(event) => onSettingsChange('facilityPresetId', event.target.value)}
+                        disabled={settingsDisabled || facilityOptions.length === 0}
+                        className="h-6 min-w-0 bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
+                    >
+                        <option value="">
+                            {facilityOptions.length === 0 ? 'No facility' : 'Auto best facility'}
+                        </option>
+                        {facilityOptions.map((facility) => (
+                            <option key={facility.id} value={facility.structure}>
+                                {facility.facilityOptions.find((option) => String(option.facilityId) === facility.structure)?.facilityName || facility.systemName}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="text-right text-[9px] text-foreground-dim font-bold">
+                        {selectedFacilityId && !settings.facilityPresetId ? 'AUTO' : settings.facilityPresetId ? 'MANUAL' : ''}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
 
-function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
+function BomTree({
+    bomTree,
+    decisionsByNodeKey,
+    nodeSettingsByNodeKey,
+    facilitySettings,
+    structureRigOptions,
+    onDecisionChange,
+    onSettingsChange,
+}) {
     const contentRef = useRef(null)
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
-    const rowHeight = 88
+    const columnWidth = 380
+    const columnGap = 12
+    const gridPadding = 16
+    const tierHeaderHeight = 28
+    const rowHeight = 84
+    const gridWidth = (layout.columnCount * columnWidth) + (Math.max(layout.columnCount - 1, 0) * columnGap) + gridPadding
+    const gridHeight = tierHeaderHeight + (layout.rowCount * rowHeight) + gridPadding
 
     useLayoutEffect(() => {
         const content = contentRef.current
@@ -601,8 +939,8 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
             })
 
             setConnectors({
-                width: content.scrollWidth,
-                height: content.scrollHeight,
+                width: gridWidth,
+                height: gridHeight,
                 paths,
             })
         }
@@ -617,7 +955,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
             resizeObserver.disconnect()
             window.removeEventListener('resize', drawConnectors)
         }
-    }, [layout])
+    }, [gridHeight, gridWidth, layout])
 
     if (!bomTree) {
         return (
@@ -631,10 +969,10 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
             <div
                 ref={contentRef}
-                className="relative grid gap-x-4 gap-y-0 p-3 min-w-max"
+                className="relative grid gap-x-3 gap-y-0 p-2 min-w-max"
                 style={{
-                    gridTemplateColumns: `repeat(${layout.columnCount}, 420px)`,
-                    gridTemplateRows: `28px repeat(${layout.rowCount}, ${rowHeight}px)`,
+                    gridTemplateColumns: `repeat(${layout.columnCount}, ${columnWidth}px)`,
+                    gridTemplateRows: `${tierHeaderHeight}px repeat(${layout.rowCount}, ${rowHeight}px)`,
                 }}
             >
                 <svg
@@ -673,7 +1011,9 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
                         <BomCard
                             node={node}
                             decision={effectiveDecision(node, decisionsByNodeKey)}
-                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '' }}
+                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }}
+                            facilitySettings={facilitySettings}
+                            structureRigOptions={structureRigOptions}
                             onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
                             onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
                         />
@@ -762,24 +1102,20 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         quantity: '1',
         me: '10',
         te: '20',
-        system: '',
         defaultDecision: 'AUTO',
     })
-    const [industrySettings, setIndustrySettings] = useState(initialIndustrySettings)
+    const [facilitySettings, setFacilitySettings] = useState(() => [createFacilitySetting('facility-1')])
     const [bomTree, setBomTree] = useState(null)
     const [decisionsByNodeKey, setDecisionsByNodeKey] = useState({})
     const [blueprintResults, setBlueprintResults] = useState([])
     const [selectedBlueprint, setSelectedBlueprint] = useState(null)
     const [blueprintSearching, setBlueprintSearching] = useState(false)
-    const [systemResults, setSystemResults] = useState([])
     const [systemCache, setSystemCache] = useState(null)
-    const [selectedSystem, setSelectedSystem] = useState(null)
     const [systemSearching, setSystemSearching] = useState(false)
-    const [systemDropdownOpen, setSystemDropdownOpen] = useState(false)
-    const [facilityOptions, setFacilityOptions] = useState([])
-    const [facilityLoading, setFacilityLoading] = useState(false)
+    const [shouldLoadSystems, setShouldLoadSystems] = useState(false)
     const [structureRigOptions, setStructureRigOptions] = useState([])
     const [structureRigLoading, setStructureRigLoading] = useState(false)
+    const [structureRigError, setStructureRigError] = useState(null)
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -824,19 +1160,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     }, [editor.blueprintQuery, selectedBlueprint])
 
     useEffect(() => {
-        if (!systemDropdownOpen) {
-            setSystemResults([])
-            setSystemSearching(false)
-            return undefined
-        }
-
-        if (systemCache) {
-            const query = editor.system.trim().toLowerCase()
-            const filteredSystems = query
-                ? systemCache.filter((system) => system.systemName.toLowerCase().includes(query))
-                : systemCache
-            setSystemResults(filteredSystems)
-            setSystemSearching(false)
+        if (!shouldLoadSystems || systemCache) {
             return undefined
         }
 
@@ -844,13 +1168,10 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSystemSearching(true)
         industryApi.systems('', 10000)
             .then((results) => {
-                if (!mounted) return
-                const systems = results || []
-                setSystemCache(systems)
-                setSystemResults(systems)
+                if (mounted) setSystemCache(results || [])
             })
             .catch(() => {
-                if (mounted) setSystemResults([])
+                if (mounted) setSystemCache([])
             })
             .finally(() => {
                 if (mounted) setSystemSearching(false)
@@ -859,17 +1180,20 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         return () => {
             mounted = false
         }
-    }, [editor.system, systemCache, systemDropdownOpen])
+    }, [shouldLoadSystems, systemCache])
 
     useEffect(() => {
         let mounted = true
         setStructureRigLoading(true)
+        setStructureRigError(null)
         industryApi.structureRigs()
             .then((rigs) => {
                 if (mounted) setStructureRigOptions(rigs || [])
             })
-            .catch(() => {
-                if (mounted) setStructureRigOptions([])
+            .catch((err) => {
+                if (!mounted) return
+                setStructureRigOptions([])
+                setStructureRigError(err.message || 'Failed to load rigs')
             })
             .finally(() => {
                 if (mounted) setStructureRigLoading(false)
@@ -879,30 +1203,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             mounted = false
         }
     }, [])
-
-    useEffect(() => {
-        if (!selectedSystem?.systemId) {
-            setFacilityOptions([])
-            return undefined
-        }
-
-        let mounted = true
-        setFacilityLoading(true)
-        industryApi.facilities(selectedSystem.systemId)
-            .then((facilities) => {
-                if (mounted) setFacilityOptions(facilities || [])
-            })
-            .catch(() => {
-                if (mounted) setFacilityOptions([])
-            })
-            .finally(() => {
-                if (mounted) setFacilityLoading(false)
-            })
-
-        return () => {
-            mounted = false
-        }
-    }, [selectedSystem])
 
     const updateBlueprintQuery = (query) => {
         setSelectedBlueprint(null)
@@ -929,25 +1229,86 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }))
     }
 
-    const updateSystemQuery = (query) => {
-        setSelectedSystem(null)
-        setFacilityOptions([])
-        setIndustrySettings((current) => ({ ...current, structure: '' }))
-        setEditor((current) => ({ ...current, system: query }))
+    const updateFacilitySetting = (settingId, field, value) => {
+        setFacilitySettings((current) => current.map((settings) => (
+            settings.id === settingId ? { ...settings, [field]: value } : settings
+        )))
     }
 
-    const selectSystem = (system) => {
-        setSelectedSystem(system)
-        setSystemResults([])
-        setIndustrySettings((current) => ({ ...current, structure: '' }))
-        setEditor((current) => ({ ...current, system: system.systemName }))
+    const patchFacilitySetting = (settingId, patch) => {
+        setFacilitySettings((current) => current.map((settings) => (
+            settings.id === settingId ? { ...settings, ...patch } : settings
+        )))
     }
 
-    const updateIndustrySetting = (field, value) => {
-        setIndustrySettings((current) => ({
-            ...current,
-            [field]: value,
-        }))
+    const addFacilitySetting = () => {
+        setFacilitySettings((current) => [...current, createFacilitySetting(nextFacilitySettingId())])
+    }
+
+    const removeFacilitySetting = (settingId) => {
+        setFacilitySettings((current) => {
+            if (current.length <= 1) return current
+            return current.filter((settings) => settings.id !== settingId)
+        })
+    }
+
+    const updateFacilitySystemQuery = (settingId, query) => {
+        patchFacilitySetting(settingId, {
+            systemQuery: query,
+            selectedSystem: null,
+            index: '0',
+            structure: '',
+            rig: '',
+            rig2: '',
+            rig3: '',
+            structureRigQuery: '',
+            structureRigQuery2: '',
+            structureRigQuery3: '',
+            facilityOptions: [],
+            facilityLoading: false,
+            bonus: '0',
+        })
+    }
+
+    const selectFacilitySystem = (settingId, system) => {
+        patchFacilitySetting(settingId, {
+            systemQuery: system.systemName,
+            selectedSystem: system,
+            index: formatIndex(system.manufacturingIndex),
+            systemDropdownOpen: false,
+            structure: '',
+            facilityOptions: [],
+            facilityLoading: true,
+        })
+
+        industryApi.facilities(system.systemId)
+            .then((facilities) => {
+                setFacilitySettings((current) => current.map((settings) => (
+                    settings.id === settingId && settings.selectedSystem?.systemId === system.systemId
+                        ? { ...settings, facilityOptions: facilities || [], facilityLoading: false }
+                        : settings
+                )))
+            })
+            .catch(() => {
+                setFacilitySettings((current) => current.map((settings) => (
+                    settings.id === settingId && settings.selectedSystem?.systemId === system.systemId
+                        ? { ...settings, facilityOptions: [], facilityLoading: false }
+                        : settings
+                )))
+            })
+    }
+
+    const setFacilitySystemOpen = (settingId, open) => {
+        if (open) setShouldLoadSystems(true)
+        patchFacilitySetting(settingId, { systemDropdownOpen: open })
+    }
+
+    const filteredSystems = (query) => {
+        const systems = systemCache || []
+        const normalizedQuery = query.trim().toLowerCase()
+        return normalizedQuery
+            ? systems.filter((system) => system.systemName.toLowerCase().includes(normalizedQuery))
+            : systems
     }
 
     const canCalculate = Number(editor.typeId) > 0 && Number(editor.quantity) > 0
@@ -980,7 +1341,14 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSaving(true)
         setError(null)
         try {
-            const payload = buildTemplatePayload(editor, bomTree, decisionsByNodeKey, nodeSettingsByNodeKey)
+            const payload = buildTemplatePayload(
+                editor,
+                bomTree,
+                decisionsByNodeKey,
+                nodeSettingsByNodeKey,
+                facilitySettings,
+                structureRigOptions,
+            )
             const created = await industryApi.createTemplate(payload)
             onTemplateCreated(created)
             setEditor((current) => ({ ...current, name: '', description: '' }))
@@ -1017,8 +1385,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     return (
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded">
-                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-start px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
-                    <div className="text-sm text-foreground font-extrabold text-right max-xl:text-left">Product</div>
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                    <div className="flex items-center justify-center text-center text-sm text-foreground font-extrabold">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
                         results={blueprintResults}
@@ -1076,22 +1444,41 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         placeholder="Description"
                     />
                 </div>
-                <FacilitySettings
-                    settings={industrySettings}
-                    systemQuery={editor.system}
-                    systemResults={systemResults}
-                    systemSearching={systemSearching}
-                    systemDropdownOpen={systemDropdownOpen}
-                    facilityOptions={facilityOptions}
-                    facilityLoading={facilityLoading}
-                    structureRigOptions={structureRigOptions}
-                    structureRigLoading={structureRigLoading}
-                    hasSelectedSystem={Boolean(selectedSystem)}
-                    onSystemOpenChange={setSystemDropdownOpen}
-                    onSystemQueryChange={updateSystemQuery}
-                    onSystemSelect={selectSystem}
-                    onChange={updateIndustrySetting}
-                />
+                <div className="border-b border-border">
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 bg-card border-b border-border">
+                        <div className="text-[11px] text-foreground-dim font-extrabold uppercase tracking-wide">
+                            Facility Settings
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addFacilitySetting}
+                            className="h-8 inline-flex items-center gap-1.5 bg-secondary/20 border border-secondary text-secondary rounded-[3px] px-3 text-[11px] font-extrabold cursor-pointer hover:bg-secondary/30"
+                            aria-label="Add facility setting"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Add
+                        </button>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        {facilitySettings.map((settings) => (
+                            <FacilitySettings
+                                key={settings.id}
+                                settings={settings}
+                                systemResults={filteredSystems(settings.systemQuery)}
+                                systemSearching={systemSearching}
+                                structureRigOptions={structureRigOptions}
+                                structureRigLoading={structureRigLoading}
+                                structureRigError={structureRigError}
+                                canRemove={facilitySettings.length > 1}
+                                onSystemOpenChange={(open) => setFacilitySystemOpen(settings.id, open)}
+                                onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
+                                onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
+                                onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
+                                onRemove={() => removeFacilitySetting(settings.id)}
+                            />
+                        ))}
+                    </div>
+                </div>
             </form>
 
             {error && (
@@ -1116,6 +1503,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     bomTree={bomTree}
                     decisionsByNodeKey={decisionsByNodeKey}
                     nodeSettingsByNodeKey={nodeSettingsByNodeKey}
+                    facilitySettings={facilitySettings}
+                    structureRigOptions={structureRigOptions}
                     onDecisionChange={setNodeDecision}
                     onSettingsChange={setNodeSetting}
                 />
