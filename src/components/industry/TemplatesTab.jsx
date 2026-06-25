@@ -18,8 +18,37 @@ function formatBonus(value) {
     return Number(value.toFixed(3)).toString()
 }
 
+function formatIndex(value) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : '0'
+}
+
 function resolveTotalBonus(structureBonus, rigBonus) {
     return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+}
+
+function securityEffectValue(effect, securityBand) {
+    if (!effect) return 0
+    if (securityBand === 'LOWSEC') return parseBonus(effect.lowsecBonus)
+    if (securityBand === 'NULLSEC') return parseBonus(effect.nullsecBonus)
+    if (securityBand === 'WORMHOLE') return parseBonus(effect.wormholeBonus)
+    return parseBonus(effect.highsecBonus)
+}
+
+function resolveRigMaterialBonus(rig, facility, manufacturingTarget = null) {
+    if (!rig) return 0
+    const materialEffects = (rig.effects || []).filter((effect) => (
+        effect.effectType === 'MATERIAL_EFFICIENCY'
+        && (!manufacturingTarget || effect.target === manufacturingTarget || effect.target === 'UNKNOWN')
+    ))
+    if (manufacturingTarget && (rig.effects || []).length > 0 && materialEffects.length === 0) return 0
+    if (materialEffects.length === 0) return parseBonus(rig.bonus)
+    return Math.max(...materialEffects.map((effect) => securityEffectValue(effect, facility?.securityBand)))
+}
+
+function resolveTotalFacilityBonus(facility, rigs, manufacturingTarget = null) {
+    const rigBonus = rigs.reduce((total, rig) => total + resolveRigMaterialBonus(rig, facility, manufacturingTarget), 0)
+    return resolveTotalBonus(facility?.structureBonus, rigBonus)
 }
 
 function findStructureRig(structureRigOptions, value) {
@@ -33,7 +62,7 @@ function countNodes(template) {
 function createFacilitySetting(id) {
     return {
         id,
-        index: '0.14',
+        index: '0',
         systemQuery: '',
         selectedSystem: null,
         systemDropdownOpen: false,
@@ -41,8 +70,14 @@ function createFacilitySetting(id) {
         facilityLoading: false,
         structure: '',
         rig: '',
+        rig2: '',
+        rig3: '',
         structureRigQuery: '',
+        structureRigQuery2: '',
+        structureRigQuery3: '',
         structureRigDropdownOpen: false,
+        structureRigDropdownOpen2: false,
+        structureRigDropdownOpen3: false,
         bonus: '0',
         tax: '10',
     }
@@ -70,7 +105,7 @@ function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettings
             quantity: node.quantity,
             runsPerJob: node.runsPerJob || 1,
             decision,
-            facilityPresetId: null,
+            facilityPresetId: parseOptionalLong(nodeSettings.facilityPresetId),
             materialEfficiency: parseOptionalInteger(nodeSettings.materialEfficiency),
             timeEfficiency: parseOptionalInteger(nodeSettings.timeEfficiency),
         },
@@ -120,8 +155,8 @@ function parseOptionalInteger(value) {
 function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = {}) {
     if (!node) return result
     result[node.nodeKey] = hasBuildableChildren(node)
-        ? { materialEfficiency, timeEfficiency }
-        : { materialEfficiency: '', timeEfficiency: '' }
+        ? { materialEfficiency, timeEfficiency, facilityPresetId: '' }
+        : { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }
     ;(node.children || []).forEach((child) => collectNodeSettings(child, materialEfficiency, timeEfficiency, result))
     return result
 }
@@ -199,6 +234,36 @@ function parseOptionalLong(value) {
     return Number.isFinite(parsed) ? parsed : null
 }
 
+function availableFacilitySettings(facilitySettings) {
+    return facilitySettings.filter((settings) => settings.selectedSystem?.systemId && settings.structure)
+}
+
+function selectedFacilityRigs(settings, structureRigOptions) {
+    return [settings.rig, settings.rig2, settings.rig3]
+        .map((value) => findStructureRig(structureRigOptions, value))
+        .filter(Boolean)
+}
+
+function selectedFacility(settings) {
+    return settings.facilityOptions.find((option) => String(option.facilityId) === settings.structure)
+}
+
+function recommendedFacilitySetting(facilitySettings, structureRigOptions, manufacturingTarget = null) {
+    return [...availableFacilitySettings(facilitySettings)]
+        .sort((left, right) => (
+            parseBonus(resolveTotalFacilityBonus(
+                selectedFacility(right),
+                selectedFacilityRigs(right, structureRigOptions),
+                manufacturingTarget,
+            ))
+            - parseBonus(resolveTotalFacilityBonus(
+                selectedFacility(left),
+                selectedFacilityRigs(left, structureRigOptions),
+                manufacturingTarget,
+            ))
+        ))[0]
+}
+
 function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
     return facilitySettings
         .filter((settings) => settings.selectedSystem?.systemId)
@@ -207,6 +272,8 @@ function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
                 (option) => String(option.facilityId) === settings.structure,
             )
             const rig = findStructureRig(structureRigOptions, settings.rig)
+            const rig2 = findStructureRig(structureRigOptions, settings.rig2)
+            const rig3 = findStructureRig(structureRigOptions, settings.rig3)
 
             return {
                 sortOrder: index,
@@ -218,6 +285,12 @@ function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
                 structureRigTypeId: rig?.typeId || null,
                 structureRigName: rig?.typeName || (settings.rig === 'custom' ? settings.structureRigQuery : null),
                 structureRigFamily: rig?.rigFamily || null,
+                structureRigTypeId2: rig2?.typeId || null,
+                structureRigName2: rig2?.typeName || (settings.rig2 === 'custom' ? settings.structureRigQuery2 : null),
+                structureRigFamily2: rig2?.rigFamily || null,
+                structureRigTypeId3: rig3?.typeId || null,
+                structureRigName3: rig3?.typeName || (settings.rig3 === 'custom' ? settings.structureRigQuery3 : null),
+                structureRigFamily3: rig3?.rigFamily || null,
                 industryIndex: settings.index || null,
                 bonus: settings.bonus || null,
                 tax: settings.tax || null,
@@ -261,17 +334,27 @@ function FacilitySettings({
     onSystemOpenChange,
     onSystemQueryChange,
     onSystemSelect,
-    onStructureRigOpenChange,
-    onStructureRigQueryChange,
     onChange,
     onRemove,
 }) {
-    const bonusReadOnly = settings.rig !== 'custom'
     const hasSelectedSystem = Boolean(settings.selectedSystem)
+    const selectedFacility = settings.facilityOptions.find(
+        (option) => String(option.facilityId) === settings.structure,
+    )
+    const rigSlots = [
+        { label: 'Rig 1', valueField: 'rig', queryField: 'structureRigQuery', openField: 'structureRigDropdownOpen' },
+        { label: 'Rig 2', valueField: 'rig2', queryField: 'structureRigQuery2', openField: 'structureRigDropdownOpen2' },
+        { label: 'Rig 3', valueField: 'rig3', queryField: 'structureRigQuery3', openField: 'structureRigDropdownOpen3' },
+    ]
+    const bonusReadOnly = !rigSlots.some((slot) => settings[slot.valueField] === 'custom')
+    const selectedRigs = rigSlots.map((slot) => findStructureRig(structureRigOptions, settings[slot.valueField]))
+    const updateBonus = (nextRigs = selectedRigs, facility = selectedFacility) => {
+        onChange('bonus', resolveTotalFacilityBonus(facility, nextRigs.filter(Boolean)))
+    }
 
     return (
         <div className="bg-card border border-border rounded">
-            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(220px,1fr)_110px_90px_36px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
+            <div className="grid grid-cols-[minmax(160px,1fr)_90px_minmax(180px,1.15fr)_minmax(260px,1.4fr)_110px_90px_36px] gap-2 items-end px-3 py-2 text-[12px] max-xl:grid-cols-3 max-lg:grid-cols-1">
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">System</span>
                     <SystemSearchInput
@@ -288,8 +371,8 @@ function FacilitySettings({
                     <span className="text-foreground-dim text-[10px] font-bold">Index</span>
                     <input
                         value={settings.index}
-                        onChange={(event) => onChange('index', event.target.value)}
-                        className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none"
+                        readOnly
+                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none cursor-default"
                     />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -300,11 +383,8 @@ function FacilitySettings({
                             const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
-                            const rig = findStructureRig(structureRigOptions, settings.rig)
                             onChange('structure', event.target.value)
-                            if (settings.rig !== 'custom') {
-                                onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
-                            }
+                            updateBonus(selectedRigs, facility)
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                         disabled={!hasSelectedSystem || settings.facilityLoading}
@@ -323,45 +403,48 @@ function FacilitySettings({
                         ))}
                     </select>
                 </label>
-                <label className="flex flex-col gap-1">
-                    <span className="text-foreground-dim text-[10px] font-bold">Rig</span>
-                    <StructureRigSearchInput
-                        query={settings.structureRigQuery}
-                        results={structureRigOptions}
-                        searching={structureRigLoading}
-                        error={structureRigError}
-                        open={settings.structureRigDropdownOpen}
-                        onOpenChange={onStructureRigOpenChange}
-                        onQueryChange={(query) => {
-                            const facility = settings.facilityOptions.find(
-                                (option) => String(option.facilityId) === settings.structure,
-                            )
-                            onStructureRigQueryChange(query)
-                            onChange('rig', '')
-                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, 0))
-                        }}
-                        onSelect={(rig) => {
-                            const facility = settings.facilityOptions.find(
-                                (option) => String(option.facilityId) === settings.structure,
-                            )
-                            onStructureRigQueryChange(rig.typeName)
-                            onChange('rig', String(rig.typeId))
-                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, rig?.bonus))
-                        }}
-                        onNoRig={() => {
-                            const facility = settings.facilityOptions.find(
-                                (option) => String(option.facilityId) === settings.structure,
-                            )
-                            onStructureRigQueryChange('')
-                            onChange('rig', '')
-                            onChange('bonus', resolveTotalBonus(facility?.structureBonus, 0))
-                        }}
-                        onCustom={() => {
-                            onStructureRigQueryChange('Custom / manual bonus')
-                            onChange('rig', 'custom')
-                        }}
-                    />
-                </label>
+                <div className="flex flex-col gap-1">
+                    <span className="text-foreground-dim text-[10px] font-bold">Rigs</span>
+                    <div className="grid grid-cols-3 gap-1 max-lg:grid-cols-1">
+                        {rigSlots.map((slot, slotIndex) => (
+                            <StructureRigSearchInput
+                                key={slot.valueField}
+                                query={settings[slot.queryField]}
+                                results={structureRigOptions}
+                                searching={structureRigLoading}
+                                error={structureRigError}
+                                open={settings[slot.openField]}
+                                onOpenChange={(open) => onChange(slot.openField, open)}
+                                onQueryChange={(query) => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = null
+                                    onChange(slot.queryField, query)
+                                    onChange(slot.valueField, '')
+                                    updateBonus(nextRigs)
+                                }}
+                                onSelect={(rig) => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = rig
+                                    onChange(slot.queryField, rig.typeName)
+                                    onChange(slot.valueField, String(rig.typeId))
+                                    updateBonus(nextRigs)
+                                }}
+                                onNoRig={() => {
+                                    const nextRigs = [...selectedRigs]
+                                    nextRigs[slotIndex] = null
+                                    onChange(slot.queryField, '')
+                                    onChange(slot.valueField, '')
+                                    updateBonus(nextRigs)
+                                }}
+                                onCustom={() => {
+                                    onChange(slot.queryField, 'Custom / manual bonus')
+                                    onChange(slot.valueField, 'custom')
+                                }}
+                                placeholder={slot.label}
+                            />
+                        ))}
+                    </div>
+                </div>
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
                     <input
@@ -410,6 +493,7 @@ function StructureRigSearchInput({
     onSelect,
     onNoRig,
     onCustom,
+    placeholder = 'No rig',
 }) {
     const normalizedQuery = query.trim().toLowerCase()
     const filteredResults = normalizedQuery
@@ -443,7 +527,7 @@ function StructureRigSearchInput({
                         onQueryChange(event.target.value)
                     }}
                     className="min-w-0 flex-1 bg-transparent border-none text-foreground text-[12px] px-3 py-2 outline-none"
-                    placeholder={error ? 'Rig load failed' : 'No rig'}
+                    placeholder={error ? 'Rig load failed' : placeholder}
                     disabled={searching}
                 />
                 <button
@@ -495,7 +579,9 @@ function StructureRigSearchInput({
                                         {rig.typeName}
                                     </div>
                                     <div className="text-[10px] text-foreground-dim leading-snug">
-                                        {rig.groupName}
+                                        {[rig.size, rig.calibration ? `${rig.calibration} cal` : null, rig.groupName]
+                                            .filter(Boolean)
+                                            .join(' / ')}
                                     </div>
                                 </button>
                             ))}
@@ -671,6 +757,9 @@ function SystemSearchInput({ query, results, searching, open, onOpenChange, onQu
                             {system.securityStatus != null && (
                                 <div className="text-[10px] text-foreground-dim">
                                     Security {Number(system.securityStatus).toFixed(1)}
+                                    {system.manufacturingIndex != null
+                                        ? ` / MFG ${formatIndex(system.manufacturingIndex)}`
+                                        : ''}
                                 </div>
                             )}
                         </button>
@@ -700,9 +789,24 @@ function nodeBorderClass(decision, buildable) {
     return 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]'
 }
 
-function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange }) {
+function BomCard({
+    node,
+    decision,
+    settings,
+    facilitySettings,
+    structureRigOptions,
+    onDecisionChange,
+    onSettingsChange,
+}) {
     const buildable = hasBuildableChildren(node)
     const settingsDisabled = !buildable || decision === 'PURCHASE'
+    const facilityOptions = availableFacilitySettings(facilitySettings)
+    const recommendedFacility = recommendedFacilitySetting(
+        facilitySettings,
+        structureRigOptions,
+        node.manufacturingTarget,
+    )
+    const selectedFacilityId = settings.facilityPresetId || (recommendedFacility?.structure || '')
 
     return (
         <div className={cn(
@@ -764,11 +868,42 @@ function BomCard({ node, decision, settings, onDecisionChange, onSettingsChange 
                     </div>
                 )}
             </div>
+            {buildable && (
+                <div className="grid grid-cols-[44px_minmax(0,1fr)_58px] gap-1.5 items-center px-2 pb-2">
+                    <span className="text-[9px] text-foreground-dim font-bold">Facility</span>
+                    <select
+                        value={selectedFacilityId}
+                        onChange={(event) => onSettingsChange('facilityPresetId', event.target.value)}
+                        disabled={settingsDisabled || facilityOptions.length === 0}
+                        className="h-6 min-w-0 bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
+                    >
+                        <option value="">
+                            {facilityOptions.length === 0 ? 'No facility' : 'Auto best facility'}
+                        </option>
+                        {facilityOptions.map((facility) => (
+                            <option key={facility.id} value={facility.structure}>
+                                {facility.facilityOptions.find((option) => String(option.facilityId) === facility.structure)?.facilityName || facility.systemName}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="text-right text-[9px] text-foreground-dim font-bold">
+                        {selectedFacilityId && !settings.facilityPresetId ? 'AUTO' : settings.facilityPresetId ? 'MANUAL' : ''}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
 
-function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisionChange, onSettingsChange }) {
+function BomTree({
+    bomTree,
+    decisionsByNodeKey,
+    nodeSettingsByNodeKey,
+    facilitySettings,
+    structureRigOptions,
+    onDecisionChange,
+    onSettingsChange,
+}) {
     const contentRef = useRef(null)
     const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
@@ -776,7 +911,7 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
     const columnGap = 12
     const gridPadding = 16
     const tierHeaderHeight = 28
-    const rowHeight = 60
+    const rowHeight = 84
     const gridWidth = (layout.columnCount * columnWidth) + (Math.max(layout.columnCount - 1, 0) * columnGap) + gridPadding
     const gridHeight = tierHeaderHeight + (layout.rowCount * rowHeight) + gridPadding
 
@@ -876,7 +1011,9 @@ function BomTree({ bomTree, decisionsByNodeKey, nodeSettingsByNodeKey, onDecisio
                         <BomCard
                             node={node}
                             decision={effectiveDecision(node, decisionsByNodeKey)}
-                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '' }}
+                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }}
+                            facilitySettings={facilitySettings}
+                            structureRigOptions={structureRigOptions}
                             onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
                             onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
                         />
@@ -1119,9 +1256,17 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         patchFacilitySetting(settingId, {
             systemQuery: query,
             selectedSystem: null,
+            index: '0',
             structure: '',
+            rig: '',
+            rig2: '',
+            rig3: '',
+            structureRigQuery: '',
+            structureRigQuery2: '',
+            structureRigQuery3: '',
             facilityOptions: [],
             facilityLoading: false,
+            bonus: '0',
         })
     }
 
@@ -1129,6 +1274,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         patchFacilitySetting(settingId, {
             systemQuery: system.systemName,
             selectedSystem: system,
+            index: formatIndex(system.manufacturingIndex),
             systemDropdownOpen: false,
             structure: '',
             facilityOptions: [],
@@ -1155,14 +1301,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const setFacilitySystemOpen = (settingId, open) => {
         if (open) setShouldLoadSystems(true)
         patchFacilitySetting(settingId, { systemDropdownOpen: open })
-    }
-
-    const setFacilityRigOpen = (settingId, open) => {
-        patchFacilitySetting(settingId, { structureRigDropdownOpen: open })
-    }
-
-    const updateFacilityRigQuery = (settingId, query) => {
-        updateFacilitySetting(settingId, 'structureRigQuery', query)
     }
 
     const filteredSystems = (query) => {
@@ -1335,8 +1473,6 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                                 onSystemOpenChange={(open) => setFacilitySystemOpen(settings.id, open)}
                                 onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
                                 onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
-                                onStructureRigOpenChange={(open) => setFacilityRigOpen(settings.id, open)}
-                                onStructureRigQueryChange={(query) => updateFacilityRigQuery(settings.id, query)}
                                 onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
                                 onRemove={() => removeFacilitySetting(settings.id)}
                             />
@@ -1367,6 +1503,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                     bomTree={bomTree}
                     decisionsByNodeKey={decisionsByNodeKey}
                     nodeSettingsByNodeKey={nodeSettingsByNodeKey}
+                    facilitySettings={facilitySettings}
+                    structureRigOptions={structureRigOptions}
                     onDecisionChange={setNodeDecision}
                     onSettingsChange={setNodeSetting}
                 />
