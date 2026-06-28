@@ -51,8 +51,22 @@ function resolveTotalFacilityBonus(facility, rigs, manufacturingTarget = null) {
     return resolveTotalBonus(facility?.structureBonus, rigBonus)
 }
 
-function findStructureRig(structureRigOptions, value) {
-    return structureRigOptions.find((rig) => String(rig.typeId) === value)
+function findStructureRig(structureRigOptions, value, query = '') {
+    const rigById = structureRigOptions.find((rig) => String(rig.typeId) === value)
+    if (rigById) return rigById
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return undefined
+    return structureRigOptions.find((rig) => rig.typeName?.toLowerCase() === normalizedQuery)
+}
+
+function rigFitsFacility(rig, facility) {
+    if (!rig || !facility?.structureSize) return true
+    return rig.size === facility.structureSize
+}
+
+function filterRigsForFacility(structureRigOptions, facility) {
+    if (!facility?.structureSize) return structureRigOptions
+    return structureRigOptions.filter((rig) => rigFitsFacility(rig, facility))
 }
 
 function countNodes(template) {
@@ -239,8 +253,12 @@ function availableFacilitySettings(facilitySettings) {
 }
 
 function selectedFacilityRigs(settings, structureRigOptions) {
-    return [settings.rig, settings.rig2, settings.rig3]
-        .map((value) => findStructureRig(structureRigOptions, value))
+    return [
+        [settings.rig, settings.structureRigQuery],
+        [settings.rig2, settings.structureRigQuery2],
+        [settings.rig3, settings.structureRigQuery3],
+    ]
+        .map(([value, query]) => findStructureRig(structureRigOptions, value, query))
         .filter(Boolean)
 }
 
@@ -271,9 +289,11 @@ function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
             const facility = settings.facilityOptions.find(
                 (option) => String(option.facilityId) === settings.structure,
             )
-            const rig = findStructureRig(structureRigOptions, settings.rig)
-            const rig2 = findStructureRig(structureRigOptions, settings.rig2)
-            const rig3 = findStructureRig(structureRigOptions, settings.rig3)
+            const rig = findStructureRig(structureRigOptions, settings.rig, settings.structureRigQuery)
+            const rig2 = findStructureRig(structureRigOptions, settings.rig2, settings.structureRigQuery2)
+            const rig3 = findStructureRig(structureRigOptions, settings.rig3, settings.structureRigQuery3)
+            const selectedRigs = [rig, rig2, rig3].filter(Boolean)
+            const calculatedBonus = resolveTotalFacilityBonus(facility, selectedRigs)
 
             return {
                 sortOrder: index,
@@ -292,7 +312,7 @@ function buildFacilitySettingsPayload(facilitySettings, structureRigOptions) {
                 structureRigName3: rig3?.typeName || (settings.rig3 === 'custom' ? settings.structureRigQuery3 : null),
                 structureRigFamily3: rig3?.rigFamily || null,
                 industryIndex: settings.index || null,
-                bonus: settings.bonus || null,
+                bonus: calculatedBonus || null,
                 tax: settings.tax || null,
             }
         })
@@ -335,6 +355,7 @@ function FacilitySettings({
     onSystemQueryChange,
     onSystemSelect,
     onChange,
+    onPatch,
     onRemove,
 }) {
     const hasSelectedSystem = Boolean(settings.selectedSystem)
@@ -346,10 +367,13 @@ function FacilitySettings({
         { label: 'Rig 2', valueField: 'rig2', queryField: 'structureRigQuery2', openField: 'structureRigDropdownOpen2' },
         { label: 'Rig 3', valueField: 'rig3', queryField: 'structureRigQuery3', openField: 'structureRigDropdownOpen3' },
     ]
-    const bonusReadOnly = !rigSlots.some((slot) => settings[slot.valueField] === 'custom')
-    const selectedRigs = rigSlots.map((slot) => findStructureRig(structureRigOptions, settings[slot.valueField]))
-    const updateBonus = (nextRigs = selectedRigs, facility = selectedFacility) => {
-        onChange('bonus', resolveTotalFacilityBonus(facility, nextRigs.filter(Boolean)))
+    const selectedRigs = rigSlots.map((slot) => (
+        findStructureRig(structureRigOptions, settings[slot.valueField], settings[slot.queryField])
+    ))
+    const availableRigOptions = filterRigsForFacility(structureRigOptions, selectedFacility)
+    const calculatedBonus = resolveTotalFacilityBonus(selectedFacility, selectedRigs.filter(Boolean))
+    const clearRigSlot = (slot) => {
+        onPatch({ [slot.queryField]: '', [slot.valueField]: '' })
     }
 
     return (
@@ -383,8 +407,15 @@ function FacilitySettings({
                             const facility = settings.facilityOptions.find(
                                 (option) => String(option.facilityId) === event.target.value,
                             )
-                            onChange('structure', event.target.value)
-                            updateBonus(selectedRigs, facility)
+                            const patch = { structure: event.target.value }
+                            selectedRigs.forEach((rig, index) => {
+                                if (!facility || (rig && !rigFitsFacility(rig, facility))) {
+                                    const slot = rigSlots[index]
+                                    patch[slot.queryField] = ''
+                                    patch[slot.valueField] = ''
+                                }
+                            })
+                            onPatch(patch)
                         }}
                         className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                         disabled={!hasSelectedSystem || settings.facilityLoading}
@@ -406,39 +437,24 @@ function FacilitySettings({
                 <div className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Rigs</span>
                     <div className="grid grid-cols-3 gap-1 max-lg:grid-cols-1">
-                        {rigSlots.map((slot, slotIndex) => (
+                        {rigSlots.map((slot) => (
                             <StructureRigSearchInput
                                 key={slot.valueField}
                                 query={settings[slot.queryField]}
-                                results={structureRigOptions}
+                                results={availableRigOptions}
+                                structureSize={selectedFacility?.structureSize}
                                 searching={structureRigLoading}
                                 error={structureRigError}
                                 open={settings[slot.openField]}
                                 onOpenChange={(open) => onChange(slot.openField, open)}
                                 onQueryChange={(query) => {
-                                    const nextRigs = [...selectedRigs]
-                                    nextRigs[slotIndex] = null
-                                    onChange(slot.queryField, query)
-                                    onChange(slot.valueField, '')
-                                    updateBonus(nextRigs)
+                                    onPatch({ [slot.queryField]: query, [slot.valueField]: '' })
                                 }}
                                 onSelect={(rig) => {
-                                    const nextRigs = [...selectedRigs]
-                                    nextRigs[slotIndex] = rig
-                                    onChange(slot.queryField, rig.typeName)
-                                    onChange(slot.valueField, String(rig.typeId))
-                                    updateBonus(nextRigs)
+                                    onPatch({ [slot.queryField]: rig.typeName, [slot.valueField]: String(rig.typeId) })
                                 }}
                                 onNoRig={() => {
-                                    const nextRigs = [...selectedRigs]
-                                    nextRigs[slotIndex] = null
-                                    onChange(slot.queryField, '')
-                                    onChange(slot.valueField, '')
-                                    updateBonus(nextRigs)
-                                }}
-                                onCustom={() => {
-                                    onChange(slot.queryField, 'Custom / manual bonus')
-                                    onChange(slot.valueField, 'custom')
+                                    clearRigSlot(slot)
                                 }}
                                 placeholder={slot.label}
                             />
@@ -448,13 +464,9 @@ function FacilitySettings({
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Bonus</span>
                     <input
-                        value={settings.bonus}
-                        onChange={(event) => onChange('bonus', event.target.value)}
-                        readOnly={bonusReadOnly}
-                        className={cn(
-                            'w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none',
-                            bonusReadOnly && 'cursor-default',
-                        )}
+                        value={calculatedBonus}
+                        readOnly
+                        className="w-full bg-emerald-400/20 border border-emerald-400/40 text-foreground px-2 py-2 rounded-[3px] outline-none cursor-default"
                     />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -492,8 +504,8 @@ function StructureRigSearchInput({
     onQueryChange,
     onSelect,
     onNoRig,
-    onCustom,
     placeholder = 'No rig',
+    structureSize,
 }) {
     const normalizedQuery = query.trim().toLowerCase()
     const filteredResults = normalizedQuery
@@ -506,14 +518,6 @@ function StructureRigSearchInput({
             return searchableText.includes(normalizedQuery)
         })
         : results
-    const groupedResults = filteredResults.reduce((groups, rig) => {
-        const family = rig.rigFamily || 'UNKNOWN'
-        if (!groups.has(family)) groups.set(family, [])
-        groups.get(family).push(rig)
-        return groups
-    }, new Map())
-    const familyOrder = ['ENGINEERING', 'RESOURCE_PROCESSING', 'UNKNOWN']
-    const orderedFamilies = familyOrder.filter((family) => groupedResults.has(family))
     const showResults = open && !error
 
     return (
@@ -549,7 +553,7 @@ function StructureRigSearchInput({
                 <span className="mt-1 block text-destructive text-[10px] font-semibold">{error}</span>
             )}
             {showResults && (
-                <div className="absolute z-20 mt-1 w-full max-h-[320px] overflow-y-auto bg-card border border-border rounded shadow-xl">
+                <div className="absolute z-20 mt-1 min-w-full w-max max-w-[calc(100vw-48px)] max-h-[320px] overflow-auto bg-card border border-border rounded shadow-xl">
                     <button
                         type="button"
                         onClick={() => {
@@ -560,48 +564,26 @@ function StructureRigSearchInput({
                     >
                         <div className="text-[12px] text-foreground font-bold">No rig</div>
                     </button>
-                    {orderedFamilies.map((family) => (
-                        <div key={family}>
-                            <div className="sticky top-0 bg-muted border-b border-border px-3 py-1 text-[10px] text-foreground-dim font-bold uppercase tracking-wide">
-                                {displayRigFamily(family)}
-                            </div>
-                            {groupedResults.get(family).map((rig) => (
-                                <button
-                                    key={rig.typeId}
-                                    type="button"
-                                    onClick={() => {
-                                        onSelect(rig)
-                                        onOpenChange(false)
-                                    }}
-                                    className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
-                                >
-                                    <div className="text-[12px] text-foreground font-bold leading-snug">
-                                        {rig.typeName}
-                                    </div>
-                                    <div className="text-[10px] text-foreground-dim leading-snug">
-                                        {[rig.size, rig.calibration ? `${rig.calibration} cal` : null, rig.groupName]
-                                            .filter(Boolean)
-                                            .join(' / ')}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                    {filteredResults.map((rig) => (
+                        <button
+                            key={rig.typeId}
+                            type="button"
+                            onClick={() => {
+                                onSelect(rig)
+                                onOpenChange(false)
+                            }}
+                            className="flex w-full items-center gap-2 border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-b border-border last:border-b-0"
+                        >
+                            <span className="shrink-0 whitespace-nowrap text-[12px] text-foreground font-bold leading-snug">
+                                {rig.typeName}
+                            </span>
+                        </button>
                     ))}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            onCustom()
-                            onOpenChange(false)
-                        }}
-                        className="w-full border-none bg-card hover:bg-border/10 text-left px-3 py-2 cursor-pointer border-t border-border"
-                    >
-                        <div className="text-[12px] text-foreground font-bold">Custom / manual bonus</div>
-                    </button>
                 </div>
             )}
             {open && !searching && !error && filteredResults.length === 0 && (
                 <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded px-3 py-3 text-[11px] text-foreground-dim shadow-xl">
-                    NO RIGS
+                    {structureSize ? `NO ${structureSize} RIGS` : 'NO RIGS'}
                 </div>
             )}
         </div>
@@ -1277,8 +1259,15 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
             index: formatIndex(system.manufacturingIndex),
             systemDropdownOpen: false,
             structure: '',
+            rig: '',
+            rig2: '',
+            rig3: '',
+            structureRigQuery: '',
+            structureRigQuery2: '',
+            structureRigQuery3: '',
             facilityOptions: [],
             facilityLoading: true,
+            bonus: '0',
         })
 
         industryApi.facilities(system.systemId)
@@ -1474,6 +1463,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                                 onSystemQueryChange={(query) => updateFacilitySystemQuery(settings.id, query)}
                                 onSystemSelect={(system) => selectFacilitySystem(settings.id, system)}
                                 onChange={(field, value) => updateFacilitySetting(settings.id, field, value)}
+                                onPatch={(patch) => patchFacilitySetting(settings.id, patch)}
                                 onRemove={() => removeFacilitySetting(settings.id)}
                             />
                         ))}
