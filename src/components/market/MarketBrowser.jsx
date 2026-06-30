@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
+import { Search, ChevronRight, ChevronDown, LayoutGrid } from 'lucide-react'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
+import { cn } from '@/lib/utils'
 
 const ALL_REGIONS_ID = 0;
 const DEFAULT_MARKET_TYPE_ID = 44992;
@@ -19,6 +20,8 @@ const PRIORITY_REGION_IDS = [
     10000032, // Sinq Laison - Dodixie
     10000042, // Metropolis - Hek
 ];
+const SELL_SORT_DEFAULTS = { quantity: 'desc', price: 'asc', location: 'asc', expires: 'asc' };
+const BUY_SORT_DEFAULTS = { quantity: 'desc', price: 'desc', location: 'asc', expires: 'asc' };
 
 const regionIdForType = (selectedRegionId, selectedTypeId) => (
     Number(selectedTypeId) === DEFAULT_MARKET_TYPE_ID ? ALL_REGIONS_ID : selectedRegionId
@@ -38,6 +41,79 @@ const sortMarketRegions = (regions) => {
 
     return [...priorityRegions, ...remainingRegions];
 };
+
+const orderExpirationTime = (order) => {
+    if (!order.issued || !order.duration) return Number.POSITIVE_INFINITY;
+    const issuedTime = new Date(order.issued).getTime();
+    if (!Number.isFinite(issuedTime)) return Number.POSITIVE_INFINITY;
+    return issuedTime + (Number(order.duration) * 24 * 60 * 60 * 1000);
+};
+
+const orderSortValue = (order, key) => {
+    if (key === 'quantity') return Number(order.volumeRemain || 0);
+    if (key === 'price') return Number(order.price || 0);
+    if (key === 'location') return String(order.locationName || order.locationId || '').toLowerCase();
+    if (key === 'expires') return orderExpirationTime(order);
+    return '';
+};
+
+const sortOrders = (orders, sort) => {
+    const direction = sort.direction === 'desc' ? -1 : 1;
+    return [...orders].sort((left, right) => {
+        const leftValue = orderSortValue(left, sort.key);
+        const rightValue = orderSortValue(right, sort.key);
+        let result = 0;
+
+        if (typeof leftValue === 'string' || typeof rightValue === 'string') {
+            result = String(leftValue).localeCompare(String(rightValue));
+        } else {
+            result = leftValue - rightValue;
+        }
+
+        if (result === 0) {
+            result = Number(left.orderId || 0) - Number(right.orderId || 0);
+        }
+        return result * direction;
+    });
+};
+
+const nextOrderSort = (currentSort, key, defaultDirection) => {
+    if (currentSort.key === key) {
+        return {
+            key,
+            direction: currentSort.direction === 'asc' ? 'desc' : 'asc',
+        };
+    }
+    return { key, direction: defaultDirection };
+};
+
+function SortHeader({ label, sortKey, sort, onSort, align = 'left' }) {
+    const active = sort.key === sortKey;
+
+    return (
+        <th
+            scope="col"
+            aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+            className={cn('py-2 text-foreground-dim font-medium', align === 'right' ? 'px-2 text-right' : 'px-4 text-left')}
+        >
+            <button
+                type="button"
+                onClick={() => onSort(sortKey)}
+                className={cn(
+                    'inline-flex items-center gap-1 border-none bg-transparent p-0 text-inherit font-inherit cursor-pointer hover:text-foreground',
+                    align === 'right' && 'justify-end w-full',
+                )}
+            >
+                <span>{label}</span>
+                <ChevronDown className={cn(
+                    'h-3 w-3 transition-transform',
+                    active ? 'opacity-100' : 'opacity-0',
+                    active && sort.direction === 'asc' && 'rotate-180',
+                )} />
+            </button>
+        </th>
+    );
+}
 
 function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
     const handleToggle = () => {
@@ -226,7 +302,11 @@ export function MarketBrowser() {
     const [buyOrders, setBuyOrders] = useState([])
     const [regions, setRegions] = useState([])
     const [selectedRegion, setSelectedRegion] = useState(ALL_REGIONS_ID)
+    const [sellSort, setSellSort] = useState({ key: 'price', direction: 'asc' })
+    const [buySort, setBuySort] = useState({ key: 'price', direction: 'desc' })
     const sortedRegions = useMemo(() => sortMarketRegions(regions), [regions]);
+    const sortedSellOrders = useMemo(() => sortOrders(sellOrders, sellSort), [sellOrders, sellSort]);
+    const sortedBuyOrders = useMemo(() => sortOrders(buyOrders, buySort), [buyOrders, buySort]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -276,6 +356,14 @@ export function MarketBrowser() {
         const nextRegionId = regionIdForType(selectedRegion, type.id);
         navigate(`/market/region/${nextRegionId}/type/${type.id}`);
     }
+
+    const handleSellSort = (key) => {
+        setSellSort((currentSort) => nextOrderSort(currentSort, key, SELL_SORT_DEFAULTS[key] || 'asc'));
+    };
+
+    const handleBuySort = (key) => {
+        setBuySort((currentSort) => nextOrderSort(currentSort, key, BUY_SORT_DEFAULTS[key] || 'asc'));
+    };
 
     return (
         <div className="flex flex-col h-[850px] border border-border rounded-lg overflow-hidden bg-background">
@@ -377,29 +465,32 @@ export function MarketBrowser() {
                     </header>
 
                     {/* Orders Tables */}
-                    <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                    <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-4 overflow-hidden p-6">
                         {/* Sell Orders */}
-                        <section>
-                            <h3 className="text-xl font-bold mb-3 tracking-tight">Sellers</h3>
-                            <div className="border-t border-border pt-2">
-                                <table className="w-full text-xs text-left">
-                                    <thead className="text-foreground-dim font-medium border-b border-border/50">
+                        <section className="min-h-0 flex flex-col overflow-hidden">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h3 className="text-xl font-bold tracking-tight">Sellers</h3>
+                                <span className="text-xs font-medium text-foreground-dim">{sortedSellOrders.length.toLocaleString()} orders</span>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto border-t border-border">
+                                <table className="w-full min-w-[720px] text-xs text-left">
+                                    <thead className="sticky top-0 z-10 bg-background text-foreground-dim font-medium border-b border-border/50">
                                         <tr>
-                                            <th className="px-2 py-2 text-right">Quantity</th>
-                                            <th className="px-4 py-2 text-right">Price</th>
-                                            <th className="px-4 py-2">Location</th>
-                                            <th className="px-4 py-2">Expires in</th>
+                                            <SortHeader label="Quantity" sortKey="quantity" sort={sellSort} onSort={handleSellSort} align="right" />
+                                            <SortHeader label="Price" sortKey="price" sort={sellSort} onSort={handleSellSort} align="right" />
+                                            <SortHeader label="Location" sortKey="location" sort={sellSort} onSort={handleSellSort} />
+                                            <SortHeader label="Expires in" sortKey="expires" sort={sellSort} onSort={handleSellSort} />
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-transparent">
-                                        {sellOrders.length === 0 ? (
+                                        {sortedSellOrders.length === 0 ? (
                                             <tr><td colSpan="4" className="px-2 py-4 text-center text-foreground-dim">No sell orders found.</td></tr>
-                                        ) : sellOrders.map(order => (
+                                        ) : sortedSellOrders.map(order => (
                                             <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
                                                 <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
-                                                <td className="px-4 py-1.5 truncate max-w-[300px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
-                                                <td className="px-4 py-1.5 text-foreground-dim font-mono">{formatExpiresIn(order.issued, order.duration)}</td>
+                                                <td className="px-4 py-1.5 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1.5 truncate max-w-[360px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1.5 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -408,31 +499,34 @@ export function MarketBrowser() {
                         </section>
 
                         {/* Buy Orders */}
-                        <section>
-                            <h3 className="text-xl font-bold mb-3 tracking-tight">Buyers</h3>
-                            <div className="border-t border-border pt-2">
-                                <table className="w-full text-xs text-left">
-                                    <thead className="text-foreground-dim font-medium border-b border-border/50">
+                        <section className="min-h-0 flex flex-col overflow-hidden">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h3 className="text-xl font-bold tracking-tight">Buyers</h3>
+                                <span className="text-xs font-medium text-foreground-dim">{sortedBuyOrders.length.toLocaleString()} orders</span>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto border-t border-border">
+                                <table className="w-full min-w-[920px] text-xs text-left">
+                                    <thead className="sticky top-0 z-10 bg-background text-foreground-dim font-medium border-b border-border/50">
                                         <tr>
-                                            <th className="px-2 py-2 text-right">Quantity</th>
-                                            <th className="px-4 py-2 text-right">Price</th>
-                                            <th className="px-4 py-2">Range</th>
-                                            <th className="px-4 py-2">Location</th>
-                                            <th className="px-4 py-2 text-right">Min Volume</th>
-                                            <th className="px-4 py-2">Expires in</th>
+                                            <SortHeader label="Quantity" sortKey="quantity" sort={buySort} onSort={handleBuySort} align="right" />
+                                            <SortHeader label="Price" sortKey="price" sort={buySort} onSort={handleBuySort} align="right" />
+                                            <th className="px-4 py-2 text-left font-medium">Range</th>
+                                            <SortHeader label="Location" sortKey="location" sort={buySort} onSort={handleBuySort} />
+                                            <th className="px-4 py-2 text-right font-medium">Min Volume</th>
+                                            <SortHeader label="Expires in" sortKey="expires" sort={buySort} onSort={handleBuySort} />
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-transparent">
-                                        {buyOrders.length === 0 ? (
+                                        {sortedBuyOrders.length === 0 ? (
                                             <tr><td colSpan="6" className="px-2 py-4 text-center text-foreground-dim">No buy orders found.</td></tr>
-                                        ) : buyOrders.map(order => (
+                                        ) : sortedBuyOrders.map(order => (
                                             <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
                                                 <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1.5 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
                                                 <td className="px-4 py-1.5 text-foreground-dim">Region</td>
-                                                <td className="px-4 py-1.5 truncate max-w-[250px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1.5 truncate max-w-[320px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
                                                 <td className="px-4 py-1.5 text-right font-mono text-foreground">1</td>
-                                                <td className="px-4 py-1.5 text-foreground-dim font-mono">{formatExpiresIn(order.issued, order.duration)}</td>
+                                                <td className="px-4 py-1.5 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
