@@ -5,6 +5,13 @@ export const industryApi = {
     manufacturingBlueprints: (query, limit = 10) => fetchApi(
         `/api/industry/blueprints/manufacturing?query=${encodeURIComponent(query)}&limit=${limit}`,
     ),
+    ownedBlueprints: (blueprintTypeIds) => {
+        const params = new URLSearchParams()
+        ;(blueprintTypeIds || []).forEach((blueprintTypeId) => {
+            params.append('blueprintTypeIds', String(blueprintTypeId))
+        })
+        return fetchApi(`/api/industry/blueprints/owned?${params.toString()}`)
+    },
     systems: (query, limit = 10) => fetchApi(
         `/api/industry/systems?query=${encodeURIComponent(query)}&limit=${limit}`,
     ),

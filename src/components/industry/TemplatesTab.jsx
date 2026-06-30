@@ -9,6 +9,10 @@ const decisions = [
     { label: '구매', value: 'PURCHASE' },
 ]
 
+const bomTreeColumnWidth = 480
+const bomTreeColumnGap = 12
+const bomTreeContentPadding = 8
+
 function parseBonus(value) {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : 0
@@ -18,13 +22,31 @@ function formatBonus(value) {
     return Number(value.toFixed(3)).toString()
 }
 
-function formatIndex(value) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : '0'
+function formatPercent(value) {
+    return `${formatBonus(parseBonus(value))}%`
 }
 
-function resolveTotalBonus(structureBonus, rigBonus) {
-    return formatBonus(parseBonus(structureBonus) + parseBonus(rigBonus))
+function formatIndex(value) {
+    if (value === '' || value == null) return ''
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : ''
+}
+
+function reductionMultiplier(bonus) {
+    const reduction = Math.max(0, parseBonus(bonus)) / 100
+    return Math.max(0, 1 - reduction)
+}
+
+function combineReductionBonuses(bonuses) {
+    const multiplier = bonuses.reduce((current, bonus) => {
+        const reduction = Math.max(0, parseBonus(bonus)) / 100
+        return current * (1 - reduction)
+    }, 1)
+    return formatBonus((1 - multiplier) * 100)
+}
+
+function combinedMultiplier(bonuses) {
+    return bonuses.reduce((current, bonus) => current * reductionMultiplier(bonus), 1)
 }
 
 function securityEffectValue(effect, securityBand) {
@@ -35,20 +57,28 @@ function securityEffectValue(effect, securityBand) {
     return parseBonus(effect.highsecBonus)
 }
 
-function resolveRigMaterialBonus(rig, facility, manufacturingTarget = null) {
+function resolveRigEffectBonus(rig, facility, manufacturingTarget = null, effectType = 'MATERIAL_EFFICIENCY') {
     if (!rig) return 0
-    const materialEffects = (rig.effects || []).filter((effect) => (
-        effect.effectType === 'MATERIAL_EFFICIENCY'
+    const effects = (rig.effects || []).filter((effect) => (
+        effect.effectType === effectType
         && (!manufacturingTarget || effect.target === manufacturingTarget || effect.target === 'UNKNOWN')
     ))
-    if (manufacturingTarget && (rig.effects || []).length > 0 && materialEffects.length === 0) return 0
-    if (materialEffects.length === 0) return parseBonus(rig.bonus)
-    return Math.max(...materialEffects.map((effect) => securityEffectValue(effect, facility?.securityBand)))
+    if (manufacturingTarget && (rig.effects || []).length > 0 && effects.length === 0) return 0
+    if (effects.length === 0) return effectType === 'MATERIAL_EFFICIENCY' ? parseBonus(rig.bonus) : 0
+    return Math.max(...effects.map((effect) => securityEffectValue(effect, facility?.securityBand)))
+}
+
+function resolveRigMaterialBonus(rig, facility, manufacturingTarget = null) {
+    return resolveRigEffectBonus(rig, facility, manufacturingTarget, 'MATERIAL_EFFICIENCY')
+}
+
+function resolveRigTimeBonus(rig, facility, manufacturingTarget = null) {
+    return resolveRigEffectBonus(rig, facility, manufacturingTarget, 'TIME_EFFICIENCY')
 }
 
 function resolveTotalFacilityBonus(facility, rigs, manufacturingTarget = null) {
-    const rigBonus = rigs.reduce((total, rig) => total + resolveRigMaterialBonus(rig, facility, manufacturingTarget), 0)
-    return resolveTotalBonus(facility?.structureBonus, rigBonus)
+    const rigBonuses = rigs.map((rig) => resolveRigMaterialBonus(rig, facility, manufacturingTarget))
+    return combineReductionBonuses([facility?.structureBonus, ...rigBonuses])
 }
 
 function findStructureRig(structureRigOptions, value, query = '') {
@@ -76,7 +106,7 @@ function countNodes(template) {
 function createFacilitySetting(id) {
     return {
         id,
-        index: '0',
+        index: '',
         systemQuery: '',
         selectedSystem: null,
         systemDropdownOpen: false,
@@ -97,8 +127,52 @@ function createFacilitySetting(id) {
     }
 }
 
+function blueprintItemLabel(blueprint) {
+    const kind = blueprint.runs === -1 ? 'BPO' : `BPC ${blueprint.runs ?? '-'} runs`
+    const owner = blueprint.characterName ? ` / ${blueprint.characterName}` : ''
+    return `${kind} ME ${blueprint.materialEfficiency ?? 0} / TE ${blueprint.timeEfficiency ?? 0}${owner}`
+}
+
 function nextFacilitySettingId() {
     return `facility-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function preferredOwnedBlueprint(ownedBlueprints) {
+    return ownedBlueprints?.[0] || null
+}
+
+function blueprintSettings(blueprint, fallbackMaterialEfficiency, fallbackTimeEfficiency) {
+    if (!blueprint) {
+        return {
+            blueprintItemId: '',
+            materialEfficiency: fallbackMaterialEfficiency,
+            timeEfficiency: fallbackTimeEfficiency,
+            facilityPresetId: '',
+        }
+    }
+    return {
+        blueprintItemId: String(blueprint.itemId),
+        materialEfficiency: String(blueprint.materialEfficiency ?? fallbackMaterialEfficiency),
+        timeEfficiency: String(blueprint.timeEfficiency ?? fallbackTimeEfficiency),
+        facilityPresetId: '',
+    }
+}
+
+function groupOwnedBlueprintsByTypeId(blueprints) {
+    return (blueprints || []).reduce((result, blueprint) => {
+        const key = String(blueprint.blueprintTypeId)
+        result[key] = [...(result[key] || []), blueprint]
+        return result
+    }, {})
+}
+
+function collectBuildableBlueprintTypeIds(node, result = new Set()) {
+    if (!node) return result
+    if (hasBuildableChildren(node) && node.blueprintTypeId) {
+        result.add(node.blueprintTypeId)
+    }
+    ;(node.children || []).forEach((child) => collectBuildableBlueprintTypeIds(child, result))
+    return result
 }
 
 function flattenBom(node, decisionsByNodeKey, parentNodeKey = null, nodeSettingsByNodeKey = {}) {
@@ -166,63 +240,77 @@ function parseOptionalInteger(value) {
     return Number.isFinite(parsed) ? parsed : null
 }
 
-function collectNodeSettings(node, materialEfficiency, timeEfficiency, result = {}) {
+function collectNodeSettings(node, materialEfficiency, timeEfficiency, ownedBlueprintOptionsByTypeId = {}, result = {}) {
     if (!node) return result
+    const ownedBlueprints = ownedBlueprintOptionsByTypeId[String(node.blueprintTypeId)] || []
     result[node.nodeKey] = hasBuildableChildren(node)
-        ? { materialEfficiency, timeEfficiency, facilityPresetId: '' }
-        : { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }
-    ;(node.children || []).forEach((child) => collectNodeSettings(child, materialEfficiency, timeEfficiency, result))
+        ? blueprintSettings(preferredOwnedBlueprint(ownedBlueprints), materialEfficiency, timeEfficiency)
+        : { blueprintItemId: '', materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }
+    ;(node.children || []).forEach((child) => (
+        collectNodeSettings(child, materialEfficiency, timeEfficiency, ownedBlueprintOptionsByTypeId, result)
+    ))
     return result
 }
 
-function collectBuildableNodeKeysByTier(node, depth = 0, result = new Map()) {
-    if (!node) return result
-    if (hasBuildableChildren(node)) {
-        const nodeKeys = result.get(depth) || []
-        nodeKeys.push(node.nodeKey)
-        result.set(depth, nodeKeys)
-    }
-    ;(node.children || []).forEach((child) => collectBuildableNodeKeysByTier(child, depth + 1, result))
-    return result
-}
-
-function buildTierLayout(node, decisionsByNodeKey) {
-    const nodes = []
-    const edges = []
-    let leafRow = 0
+function buildTierLayout(node, decisionsByNodeKey, estimateNodeHeight = () => 58) {
+    const verticalGap = 10
     let maxDepth = 0
-    let maxRow = 0
 
-    function walk(current, depth, parent = null) {
+    function walk(current, depth) {
         const children = shouldExpandChildren(current, decisionsByNodeKey) ? current.children || [] : []
-        const childRows = children.map((child) => walk(child, depth + 1, current))
-        const currentRow = childRows.length > 0
-            ? Math.round((childRows[0] + childRows[childRows.length - 1]) / 2)
-            : leafRow++
+        const childLayouts = children.map((child) => ({ child, layout: walk(child, depth + 1) }))
+        const ownHeight = estimateNodeHeight(current)
+        const childrenHeight = childLayouts.length > 0
+            ? childLayouts.reduce((total, { layout }) => total + layout.height, 0)
+                + ((childLayouts.length - 1) * verticalGap)
+            : 0
+        const height = Math.max(ownHeight, childrenHeight)
+        const centerY = height / 2
+        const nodes = [{ node: current, depth, y: centerY, height: ownHeight }]
+        const edges = []
+        let childTop = (height - childrenHeight) / 2
 
-        maxDepth = Math.max(maxDepth, depth)
-        maxRow = Math.max(maxRow, currentRow)
-        nodes.push({ node: current, depth, row: currentRow })
-
-        if (parent) {
+        childLayouts.forEach(({ child, layout }) => {
+            nodes.push(...layout.nodes.map((layoutNode) => ({
+                ...layoutNode,
+                y: layoutNode.y + childTop,
+            })))
+            edges.push(...layout.edges)
             edges.push({
-                from: parent.nodeKey,
-                to: current.nodeKey,
-                decision: effectiveDecision(current, decisionsByNodeKey),
-                buildable: hasBuildableChildren(current),
+                from: current.nodeKey,
+                to: child.nodeKey,
+                decision: effectiveDecision(child, decisionsByNodeKey),
+                buildable: hasBuildableChildren(child),
             })
+            childTop += layout.height + verticalGap
+        })
+        maxDepth = Math.max(maxDepth, depth)
+
+        return {
+            nodes,
+            edges,
+            height,
         }
-
-        return currentRow
     }
 
-    if (node) walk(node, 0)
+    const layout = node ? walk(node, 0) : { nodes: [], edges: [], height: 0 }
     return {
-        nodes,
-        edges,
+        nodes: layout.nodes,
+        edges: layout.edges,
         columnCount: maxDepth + 1,
-        rowCount: Math.max(maxRow + 1, 1),
+        height: layout.height,
     }
+}
+
+function collectBuildableNodeKeysByTier(layout) {
+    return layout.nodes.reduce((result, { node, depth }) => {
+        if (hasBuildableChildren(node)) {
+            const nodeKeys = result.get(depth) || []
+            nodeKeys.push(node.nodeKey)
+            result.set(depth, nodeKeys)
+        }
+        return result
+    }, new Map())
 }
 
 function aggregateRequiredMaterials(node, decisionsByNodeKey, result = new Map()) {
@@ -264,6 +352,128 @@ function selectedFacilityRigs(settings, structureRigOptions) {
 
 function selectedFacility(settings) {
     return settings.facilityOptions.find((option) => String(option.facilityId) === settings.structure)
+}
+
+function selectedFacilitySettingByFacilityId(facilitySettings, facilityId) {
+    if (!facilityId) return null
+    return availableFacilitySettings(facilitySettings).find((settings) => String(settings.structure) === String(facilityId)) || null
+}
+
+function resolveNodeFacilitySetting(node, nodeSettings, facilitySettings, structureRigOptions) {
+    return selectedFacilitySettingByFacilityId(facilitySettings, nodeSettings.facilityPresetId)
+        || recommendedFacilitySetting(facilitySettings, structureRigOptions, node.manufacturingTarget)
+        || null
+}
+
+function skillBonusPerLevel(level, bonusPerLevel) {
+    const parsed = Number(level)
+    if (!Number.isFinite(parsed)) return 0
+    return Math.min(5, Math.max(0, parsed)) * bonusPerLevel
+}
+
+function calculationLine(parts) {
+    return parts
+        .filter((part) => parseBonus(part.value) > 0)
+        .map((part) => `${part.label} ${formatPercent(part.value)}`)
+        .join(' x ')
+}
+
+function formatDuration(seconds) {
+    const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0))
+    const days = Math.floor(totalSeconds / 86400)
+    const hours = Math.floor((totalSeconds % 86400) / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${minutes}m`
+    return `${minutes}m`
+}
+
+function resolveJobCalculation(node, nodeSettings, facilitySettings, structureRigOptions, skills, runs) {
+    if (!hasBuildableChildren(node) || node.activityType !== 'MANUFACTURING') {
+        return null
+    }
+
+    const facilitySetting = resolveNodeFacilitySetting(node, nodeSettings, facilitySettings, structureRigOptions)
+    const facility = facilitySetting ? selectedFacility(facilitySetting) : null
+    const rigs = facilitySetting ? selectedFacilityRigs(facilitySetting, structureRigOptions) : []
+    const rigMaterialBonuses = rigs.map((rig, index) => ({
+        label: `Rig ${index + 1} ME`,
+        value: resolveRigMaterialBonus(rig, facility, node.manufacturingTarget),
+    }))
+    const rigTimeBonuses = rigs.map((rig, index) => ({
+        label: `Rig ${index + 1} TE`,
+        value: resolveRigTimeBonus(rig, facility, node.manufacturingTarget),
+    }))
+    const materialParts = [
+        { label: 'BP ME', value: nodeSettings.materialEfficiency },
+        { label: 'Structure ME', value: facility?.structureBonus },
+        ...rigMaterialBonuses,
+    ]
+    const timeParts = [
+        { label: 'BP TE', value: nodeSettings.timeEfficiency },
+        { label: 'Industry', value: skillBonusPerLevel(skills.industrySkill, 4) },
+        { label: 'Advanced Industry', value: skillBonusPerLevel(skills.advancedIndustrySkill, 3) },
+        { label: 'Structure TE', value: facility?.structureTimeBonus },
+        ...rigTimeBonuses,
+    ]
+    const materialFactor = combinedMultiplier(materialParts.map((part) => part.value))
+    const timeFactor = combinedMultiplier(timeParts.map((part) => part.value))
+    const baseTimeSeconds = Number(node.baseTimeSeconds || 0)
+    const jobTimeSeconds = baseTimeSeconds > 0 ? Math.ceil(baseTimeSeconds * runs * timeFactor) : null
+
+    return {
+        facilitySettingId: facilitySetting?.id || null,
+        materialFactor,
+        timeFactor,
+        jobTimeSeconds,
+        materialFormula: calculationLine(materialParts) || 'No ME modifiers',
+        timeFormula: calculationLine(timeParts) || 'No TE modifiers',
+    }
+}
+
+function calculateRequiredMaterial(baseQuantity, runs, materialFactor, activityType) {
+    const base = Number(baseQuantity || 0)
+    if (base <= 0 || runs <= 0) return 0
+    if (activityType !== 'MANUFACTURING') return base * runs
+    const adjusted = Math.ceil((base * runs * materialFactor) - Number.EPSILON)
+    return Math.max(runs, adjusted)
+}
+
+function recalculateBomTree(node, decisionsByNodeKey, nodeSettingsByNodeKey, facilitySettings, structureRigOptions, skills) {
+    if (!node) return null
+
+    function walk(current, requiredQuantity) {
+        const buildable = hasBuildableChildren(current)
+        const outputQuantity = Number(current.outputQuantity || 1)
+        const runs = buildable ? Math.max(1, Math.ceil(requiredQuantity / outputQuantity)) : (current.runsPerJob || 1)
+        const nodeSettings = nodeSettingsByNodeKey[current.nodeKey] || {}
+        const calculation = resolveJobCalculation(
+            current,
+            nodeSettings,
+            facilitySettings,
+            structureRigOptions,
+            skills,
+            runs,
+        )
+        const children = shouldExpandChildren(current, decisionsByNodeKey) ? (current.children || []).map((child) => {
+            const fallbackBaseQuantity = runs > 0 ? Number(child.quantity || 0) / runs : Number(child.quantity || 0)
+            const baseQuantity = child.baseQuantity ?? fallbackBaseQuantity
+            const childQuantity = buildable
+                ? calculateRequiredMaterial(baseQuantity, runs, calculation?.materialFactor ?? 1, current.activityType)
+                : Number(child.quantity || 0)
+            return walk(child, childQuantity)
+        }) : (current.children || [])
+
+        return {
+            ...current,
+            quantity: requiredQuantity,
+            runsPerJob: runs,
+            calculation,
+            children,
+        }
+    }
+
+    return walk(node, Number(node.quantity || 0))
 }
 
 function recommendedFacilitySetting(facilitySettings, structureRigOptions, manufacturingTarget = null) {
@@ -394,9 +604,13 @@ function FacilitySettings({
                 <label className="flex flex-col gap-1">
                     <span className="text-foreground-dim text-[10px] font-bold">Index</span>
                     <input
+                        type="number"
+                        min="0"
+                        step="0.000001"
                         value={settings.index}
-                        readOnly
-                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none cursor-default"
+                        onChange={(event) => onChange('index', event.target.value)}
+                        placeholder="Manual"
+                        className="w-full bg-muted border border-border text-foreground px-2 py-2 rounded-[3px] outline-none"
                     />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -612,10 +826,14 @@ function DecisionButtons({ value, onChange }) {
     )
 }
 
-function TierBulkControls({ bomTree, onTierDecisionChange }) {
+function TierBulkControls({ bomTree, decisionsByNodeKey, onTierDecisionChange }) {
+    const layout = useMemo(
+        () => buildTierLayout(bomTree, decisionsByNodeKey),
+        [bomTree, decisionsByNodeKey],
+    )
     const tiers = useMemo(
-        () => Array.from(collectBuildableNodeKeysByTier(bomTree).entries()).sort(([left], [right]) => left - right),
-        [bomTree],
+        () => Array.from(collectBuildableNodeKeysByTier(layout).entries()).sort(([left], [right]) => left - right),
+        [layout],
     )
 
     if (!bomTree || tiers.length === 0) return null
@@ -771,14 +989,32 @@ function nodeBorderClass(decision, buildable) {
     return 'border-sky-400/45 shadow-[inset_3px_0_0_rgba(56,189,248,0.35)]'
 }
 
+function estimateBomCardHeight(node, ownedBlueprintOptionsByTypeId) {
+    if (!hasBuildableChildren(node)) return 60
+
+    let height = 98
+    const ownedBlueprintOptions = ownedBlueprintOptionsByTypeId[String(node.blueprintTypeId)] || []
+    if (ownedBlueprintOptions.length > 0) height += 32
+    return height
+}
+
+function heightMapChanged(previous, next) {
+    const previousKeys = Object.keys(previous)
+    const nextKeys = Object.keys(next)
+    if (previousKeys.length !== nextKeys.length) return true
+    return nextKeys.some((key) => Math.abs((previous[key] || 0) - next[key]) > 1)
+}
+
 function BomCard({
     node,
     decision,
     settings,
     facilitySettings,
     structureRigOptions,
+    ownedBlueprintOptionsByTypeId,
     onDecisionChange,
     onSettingsChange,
+    onSettingsPatch,
 }) {
     const buildable = hasBuildableChildren(node)
     const settingsDisabled = !buildable || decision === 'PURCHASE'
@@ -789,29 +1025,36 @@ function BomCard({
         node.manufacturingTarget,
     )
     const selectedFacilityId = settings.facilityPresetId || (recommendedFacility?.structure || '')
+    const ownedBlueprintOptions = ownedBlueprintOptionsByTypeId[String(node.blueprintTypeId)] || []
+    const calculation = node.calculation
+    const jobDuration = calculation?.jobTimeSeconds != null ? formatDuration(calculation.jobTimeSeconds) : '-'
 
     return (
         <div className={cn(
-            'relative z-10 bg-card border rounded-[4px] overflow-hidden w-[380px] shadow-sm',
+            'relative z-10 bg-card border rounded-[4px] overflow-hidden shadow-sm',
             nodeBorderClass(decision, buildable),
-        )}>
-            <div className="grid grid-cols-[minmax(0,1fr)_58px_44px_54px] gap-1.5 items-center bg-muted px-2 py-[2px] border-b border-border">
+        )} style={{ width: bomTreeColumnWidth }}>
+            <div className="grid grid-cols-[minmax(0,1fr)_68px_68px_68px_68px] gap-1.5 items-center bg-muted px-2 py-[2px] border-b border-border">
                 <div className="min-w-0">
                     <div className="text-[11px] text-foreground font-bold leading-snug truncate" title={node.typeName}>
                         {node.typeName}
                     </div>
                 </div>
                 <div className="text-right">
+                    <div className="text-[9px] text-foreground-dim">Time</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono whitespace-nowrap">{jobDuration}</div>
+                </div>
+                <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Need</div>
-                    <div className="text-[10px] text-foreground font-bold font-mono truncate">{number(node.quantity)}</div>
+                    <div className="text-[10px] text-foreground font-bold font-mono whitespace-nowrap">{number(node.quantity)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Runs</div>
-                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayRuns(node, decision)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono whitespace-nowrap">{displayRuns(node, decision)}</div>
                 </div>
                 <div className="text-right">
                     <div className="text-[9px] text-foreground-dim">Out/run</div>
-                    <div className="text-[10px] text-foreground-muted font-bold font-mono">{displayOutputQuantity(node)}</div>
+                    <div className="text-[10px] text-foreground-muted font-bold font-mono whitespace-nowrap">{displayOutputQuantity(node)}</div>
                 </div>
             </div>
             <div className="grid grid-cols-[20px_58px_20px_58px_minmax(0,1fr)] gap-1.5 items-center px-2 py-[2px]">
@@ -822,7 +1065,10 @@ function BomCard({
                             <input
                                 type="number"
                                 value={settings.materialEfficiency}
-                                onChange={(event) => onSettingsChange('materialEfficiency', event.target.value)}
+                                onChange={(event) => onSettingsPatch({
+                                    blueprintItemId: '',
+                                    materialEfficiency: event.target.value,
+                                })}
                                 disabled={settingsDisabled}
                                 className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
@@ -832,7 +1078,10 @@ function BomCard({
                             <input
                                 type="number"
                                 value={settings.timeEfficiency}
-                                onChange={(event) => onSettingsChange('timeEfficiency', event.target.value)}
+                                onChange={(event) => onSettingsPatch({
+                                    blueprintItemId: '',
+                                    timeEfficiency: event.target.value,
+                                })}
                                 disabled={settingsDisabled}
                                 className="h-5 w-full bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
                             />
@@ -850,6 +1099,37 @@ function BomCard({
                     </div>
                 )}
             </div>
+            {buildable && ownedBlueprintOptions.length > 0 && (
+                <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-1.5 items-center px-2 pb-2">
+                    <span className="text-[9px] text-foreground-dim font-bold">BP</span>
+                    <select
+                        value={settings.blueprintItemId || ''}
+                        onChange={(event) => {
+                            const blueprint = ownedBlueprintOptions.find(
+                                (option) => String(option.itemId) === event.target.value,
+                            )
+                            if (!blueprint) {
+                                onSettingsPatch({ blueprintItemId: '' })
+                                return
+                            }
+                            onSettingsPatch({
+                                blueprintItemId: String(blueprint.itemId),
+                                materialEfficiency: String(blueprint.materialEfficiency ?? ''),
+                                timeEfficiency: String(blueprint.timeEfficiency ?? ''),
+                            })
+                        }}
+                        disabled={settingsDisabled}
+                        className="h-6 min-w-0 bg-background border border-border text-foreground text-[10px] px-1.5 py-0 rounded-[3px] outline-none disabled:opacity-40"
+                    >
+                        <option value="">Manual ME/TE</option>
+                        {ownedBlueprintOptions.map((blueprint) => (
+                            <option key={blueprint.itemId} value={String(blueprint.itemId)}>
+                                {blueprintItemLabel(blueprint)}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            )}
             {buildable && (
                 <div className="grid grid-cols-[44px_minmax(0,1fr)_58px] gap-1.5 items-center px-2 pb-2">
                     <span className="text-[9px] text-foreground-dim font-bold">Facility</span>
@@ -883,34 +1163,54 @@ function BomTree({
     nodeSettingsByNodeKey,
     facilitySettings,
     structureRigOptions,
+    ownedBlueprintOptionsByTypeId,
     onDecisionChange,
     onSettingsChange,
+    onSettingsPatch,
 }) {
     const contentRef = useRef(null)
-    const layout = useMemo(() => buildTierLayout(bomTree, decisionsByNodeKey), [bomTree, decisionsByNodeKey])
+    const [nodeHeightsByKey, setNodeHeightsByKey] = useState({})
+    const layout = useMemo(
+        () => buildTierLayout(
+            bomTree,
+            decisionsByNodeKey,
+            (node) => nodeHeightsByKey[node.nodeKey] || estimateBomCardHeight(node, ownedBlueprintOptionsByTypeId),
+        ),
+        [bomTree, decisionsByNodeKey, nodeHeightsByKey, ownedBlueprintOptionsByTypeId],
+    )
     const [connectors, setConnectors] = useState({ width: 0, height: 0, paths: [] })
-    const columnWidth = 380
-    const columnGap = 12
-    const gridPadding = 16
     const tierHeaderHeight = 28
-    const rowHeight = 84
-    const gridWidth = (layout.columnCount * columnWidth) + (Math.max(layout.columnCount - 1, 0) * columnGap) + gridPadding
-    const gridHeight = tierHeaderHeight + (layout.rowCount * rowHeight) + gridPadding
+    const gridWidth = (bomTreeContentPadding * 2)
+        + (layout.columnCount * bomTreeColumnWidth)
+        + (Math.max(layout.columnCount - 1, 0) * bomTreeColumnGap)
+    const gridHeight = (bomTreeContentPadding * 2) + tierHeaderHeight + layout.height
 
     useLayoutEffect(() => {
         const content = contentRef.current
         if (!content) return undefined
 
         const drawConnectors = () => {
+            const contentRect = content.getBoundingClientRect()
+            const nextNodeHeights = {}
+            content.querySelectorAll('[data-node-key]').forEach((element) => {
+                const nodeKey = element.getAttribute('data-node-key')
+                if (nodeKey) nextNodeHeights[nodeKey] = Math.ceil(element.getBoundingClientRect().height)
+            })
+            if (heightMapChanged(nodeHeightsByKey, nextNodeHeights)) {
+                setNodeHeightsByKey(nextNodeHeights)
+            }
+
             const paths = layout.edges.flatMap((edge) => {
                 const from = content.querySelector(`[data-node-key="${CSS.escape(edge.from)}"]`)
                 const to = content.querySelector(`[data-node-key="${CSS.escape(edge.to)}"]`)
                 if (!from || !to) return []
 
-                const startX = from.offsetLeft + from.offsetWidth
-                const startY = from.offsetTop + from.offsetHeight / 2
-                const endX = to.offsetLeft
-                const endY = to.offsetTop + to.offsetHeight / 2
+                const fromRect = from.getBoundingClientRect()
+                const toRect = to.getBoundingClientRect()
+                const startX = fromRect.right - contentRect.left
+                const startY = fromRect.top - contentRect.top + (fromRect.height / 2)
+                const endX = toRect.left - contentRect.left
+                const endY = toRect.top - contentRect.top + (toRect.height / 2)
                 const midX = startX + Math.max(8, (endX - startX) / 2)
 
                 return [{
@@ -921,8 +1221,8 @@ function BomTree({
             })
 
             setConnectors({
-                width: gridWidth,
-                height: gridHeight,
+                width: Math.max(content.scrollWidth, content.clientWidth, gridWidth),
+                height: Math.max(content.scrollHeight, content.clientHeight, gridHeight),
                 paths,
             })
         }
@@ -937,7 +1237,7 @@ function BomTree({
             resizeObserver.disconnect()
             window.removeEventListener('resize', drawConnectors)
         }
-    }, [gridHeight, gridWidth, layout])
+    }, [gridHeight, gridWidth, layout, nodeHeightsByKey])
 
     if (!bomTree) {
         return (
@@ -951,10 +1251,10 @@ function BomTree({
         <div className="bg-background/40 border border-border rounded overflow-x-auto">
             <div
                 ref={contentRef}
-                className="relative grid gap-x-3 gap-y-0 p-2 min-w-max"
+                className="relative min-w-max"
                 style={{
-                    gridTemplateColumns: `repeat(${layout.columnCount}, ${columnWidth}px)`,
-                    gridTemplateRows: `${tierHeaderHeight}px repeat(${layout.rowCount}, ${rowHeight}px)`,
+                    width: gridWidth,
+                    height: gridHeight,
                 }}
             >
                 <svg
@@ -977,27 +1277,37 @@ function BomTree({
                 {Array.from({ length: layout.columnCount }, (_, depth) => (
                     <div
                         key={depth}
-                        className="text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1"
-                        style={{ gridColumn: depth + 1, gridRow: 1 }}
+                        className="absolute text-[9px] text-foreground-dim uppercase tracking-wider font-bold px-1"
+                        style={{
+                            left: bomTreeContentPadding + (depth * (bomTreeColumnWidth + bomTreeColumnGap)),
+                            top: bomTreeContentPadding,
+                            width: bomTreeColumnWidth,
+                        }}
                     >
                         Tier {depth}
                     </div>
                 ))}
-                {layout.nodes.map(({ node, depth, row }) => (
+                {layout.nodes.map(({ node, depth, y }) => (
                     <div
                         key={node.nodeKey}
                         data-node-key={node.nodeKey}
-                        className="self-center"
-                        style={{ gridColumn: depth + 1, gridRow: row + 2 }}
+                        className="absolute"
+                        style={{
+                            left: bomTreeContentPadding + (depth * (bomTreeColumnWidth + bomTreeColumnGap)),
+                            top: bomTreeContentPadding + tierHeaderHeight + y,
+                            transform: 'translateY(-50%)',
+                        }}
                     >
                         <BomCard
                             node={node}
                             decision={effectiveDecision(node, decisionsByNodeKey)}
-                            settings={nodeSettingsByNodeKey[node.nodeKey] || { materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }}
+                            settings={nodeSettingsByNodeKey[node.nodeKey] || { blueprintItemId: '', materialEfficiency: '', timeEfficiency: '', facilityPresetId: '' }}
                             facilitySettings={facilitySettings}
                             structureRigOptions={structureRigOptions}
+                            ownedBlueprintOptionsByTypeId={ownedBlueprintOptionsByTypeId}
                             onDecisionChange={(decision) => onDecisionChange(node.nodeKey, decision)}
                             onSettingsChange={(field, value) => onSettingsChange(node.nodeKey, field, value)}
+                            onSettingsPatch={(patch) => onSettingsPatch(node.nodeKey, patch)}
                         />
                     </div>
                 ))}
@@ -1084,6 +1394,8 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         quantity: '1',
         me: '10',
         te: '20',
+        industrySkill: '5',
+        advancedIndustrySkill: '5',
         defaultDecision: 'AUTO',
     })
     const [facilitySettings, setFacilitySettings] = useState(() => [createFacilitySetting('facility-1')])
@@ -1098,6 +1410,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
     const [structureRigOptions, setStructureRigOptions] = useState([])
     const [structureRigLoading, setStructureRigLoading] = useState(false)
     const [structureRigError, setStructureRigError] = useState(null)
+    const [ownedBlueprintOptionsByTypeId, setOwnedBlueprintOptionsByTypeId] = useState({})
     const [nodeSettingsByNodeKey, setNodeSettingsByNodeKey] = useState({})
     const [calculating, setCalculating] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -1190,6 +1503,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setSelectedBlueprint(null)
         setBomTree(null)
         setDecisionsByNodeKey({})
+        setOwnedBlueprintOptionsByTypeId({})
         setNodeSettingsByNodeKey({})
         setEditor((current) => ({
             ...current,
@@ -1238,7 +1552,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         patchFacilitySetting(settingId, {
             systemQuery: query,
             selectedSystem: null,
-            index: '0',
+            index: '',
             structure: '',
             rig: '',
             rig2: '',
@@ -1302,6 +1616,28 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
 
     const canCalculate = Number(editor.typeId) > 0 && Number(editor.quantity) > 0
     const canSave = bomTree && editor.name.trim() && editor.typeName.trim()
+    const calculatedBomTree = useMemo(
+        () => recalculateBomTree(
+            bomTree,
+            decisionsByNodeKey,
+            nodeSettingsByNodeKey,
+            facilitySettings,
+            structureRigOptions,
+            {
+                industrySkill: editor.industrySkill,
+                advancedIndustrySkill: editor.advancedIndustrySkill,
+            },
+        ),
+        [
+            bomTree,
+            decisionsByNodeKey,
+            nodeSettingsByNodeKey,
+            facilitySettings,
+            structureRigOptions,
+            editor.industrySkill,
+            editor.advancedIndustrySkill,
+        ],
+    )
 
     const calculate = async (event) => {
         event.preventDefault()
@@ -1311,12 +1647,23 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setError(null)
         try {
             const tree = await industryApi.manufacturingBom(Number(editor.typeId), Number(editor.quantity))
+            const blueprintTypeIds = Array.from(collectBuildableBlueprintTypeIds(tree))
+            let ownedBlueprintOptions = {}
+            if (blueprintTypeIds.length > 0) {
+                try {
+                    const ownedBlueprints = await industryApi.ownedBlueprints(blueprintTypeIds)
+                    ownedBlueprintOptions = groupOwnedBlueprintsByTypeId(ownedBlueprints)
+                } catch {
+                    ownedBlueprintOptions = {}
+                }
+            }
             setBomTree(tree)
+            setOwnedBlueprintOptionsByTypeId(ownedBlueprintOptions)
             setEditor((current) => ({ ...current, typeName: current.typeName || tree.typeName }))
             setDecisionsByNodeKey(
                 Object.fromEntries(flattenBom(tree, {}).map((node) => [node.nodeKey, editor.defaultDecision])),
             )
-            setNodeSettingsByNodeKey(collectNodeSettings(tree, editor.me, editor.te))
+            setNodeSettingsByNodeKey(collectNodeSettings(tree, editor.me, editor.te, ownedBlueprintOptions))
         } catch (err) {
             setError(err.message)
         } finally {
@@ -1332,7 +1679,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         try {
             const payload = buildTemplatePayload(
                 editor,
-                bomTree,
+                calculatedBomTree,
                 decisionsByNodeKey,
                 nodeSettingsByNodeKey,
                 facilitySettings,
@@ -1363,6 +1710,7 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         setNodeSettingsByNodeKey((current) => ({
             ...current,
             [nodeKey]: {
+                blueprintItemId: '',
                 materialEfficiency: '',
                 timeEfficiency: '',
                 ...(current[nodeKey] || {}),
@@ -1371,10 +1719,23 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
         }))
     }
 
+    const patchNodeSetting = (nodeKey, patch) => {
+        setNodeSettingsByNodeKey((current) => ({
+            ...current,
+            [nodeKey]: {
+                blueprintItemId: '',
+                materialEfficiency: '',
+                timeEfficiency: '',
+                ...(current[nodeKey] || {}),
+                ...patch,
+            },
+        }))
+    }
+
     return (
         <div className="flex flex-col gap-4">
             <form onSubmit={calculate} className="bg-card border border-border rounded">
-                <div className="grid grid-cols-[90px_minmax(220px,1fr)_90px_90px_90px_160px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
+                <div className="grid grid-cols-[90px_minmax(220px,1fr)_76px_76px_76px_96px_82px_150px] gap-2 items-center px-3 py-2 bg-muted border-b border-border max-xl:grid-cols-2">
                     <div className="flex items-center justify-center text-center text-sm text-foreground font-extrabold">Product</div>
                     <BlueprintSearchInput
                         query={editor.blueprintQuery}
@@ -1408,6 +1769,28 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                             type="number"
                             value={editor.te}
                             onChange={updateEditor('te')}
+                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
+                        />
+                    </label>
+                    <label className="flex items-center gap-1">
+                        <span className="text-foreground text-[11px] font-bold">Industry</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            value={editor.industrySkill}
+                            onChange={updateEditor('industrySkill')}
+                            className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
+                        />
+                    </label>
+                    <label className="flex items-center gap-1">
+                        <span className="text-foreground text-[11px] font-bold">Adv</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            value={editor.advancedIndustrySkill}
+                            onChange={updateEditor('advancedIndustrySkill')}
                             className="w-full bg-background border border-border text-foreground text-[12px] px-2 py-2 rounded-[3px] outline-none"
                         />
                     </label>
@@ -1488,21 +1871,27 @@ export function TemplatesTab({ templates, onTemplateCreated }) {
                         {saving ? 'Saving...' : 'Save Template'}
                     </button>
                 </div>
-                <TierBulkControls bomTree={bomTree} onTierDecisionChange={setTierDecision} />
-                <BomTree
+                <TierBulkControls
                     bomTree={bomTree}
+                    decisionsByNodeKey={decisionsByNodeKey}
+                    onTierDecisionChange={setTierDecision}
+                />
+                <BomTree
+                    bomTree={calculatedBomTree}
                     decisionsByNodeKey={decisionsByNodeKey}
                     nodeSettingsByNodeKey={nodeSettingsByNodeKey}
                     facilitySettings={facilitySettings}
                     structureRigOptions={structureRigOptions}
+                    ownedBlueprintOptionsByTypeId={ownedBlueprintOptionsByTypeId}
                     onDecisionChange={setNodeDecision}
                     onSettingsChange={setNodeSetting}
+                    onSettingsPatch={patchNodeSetting}
                 />
             </div>
 
             <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start max-xl:grid-cols-1">
                 <MaterialsSummary
-                    bomTree={bomTree}
+                    bomTree={calculatedBomTree}
                     decisionsByNodeKey={decisionsByNodeKey}
                     maxHeightClass="max-h-[520px]"
                 />

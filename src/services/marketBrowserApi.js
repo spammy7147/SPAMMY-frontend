@@ -9,7 +9,7 @@ export const marketBrowserApi = {
     getGroupTypes: (groupId) => fetchApi(`/api/marketbrowser/groups/${groupId}/types`),
 
     // 마켓 주문 내역 조회 (판매/구매 분리)
-    getOrders: (typeId, isBuyOrder, regionId = 10000002, page = 0, size = 100) => {
+    getOrders: (typeId, isBuyOrder, regionId = 0, page = 0, size = 100) => {
         const queryParams = new URLSearchParams({
             isBuyOrder,
             regionId,

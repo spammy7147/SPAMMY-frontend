@@ -3,6 +3,42 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Search, ChevronRight, ChevronDown, Info, ArrowUpRight, ArrowDownRight, LayoutGrid, List } from 'lucide-react'
 import { marketBrowserApi } from '@/services/marketBrowserApi'
 
+const ALL_REGIONS_ID = 0;
+const DEFAULT_MARKET_TYPE_ID = 44992;
+const DEFAULT_MARKET_ITEM = {
+    id: DEFAULT_MARKET_TYPE_ID,
+    name: 'PLEX',
+    categoryPath: [],
+    description: '',
+    avgPrice: '0.00',
+    change: '0%'
+};
+const PRIORITY_REGION_IDS = [
+    10000002, // The Forge - Jita
+    10000043, // Domain - Amarr
+    10000032, // Sinq Laison - Dodixie
+    10000042, // Metropolis - Hek
+];
+
+const regionIdForType = (selectedRegionId, selectedTypeId) => (
+    Number(selectedTypeId) === DEFAULT_MARKET_TYPE_ID ? ALL_REGIONS_ID : selectedRegionId
+);
+
+const regionName = (region) => region?.name || '';
+
+const sortMarketRegions = (regions) => {
+    const regionById = new Map(regions.map((region) => [Number(region.regionId), region]));
+    const priorityRegions = PRIORITY_REGION_IDS
+        .map((regionId) => regionById.get(regionId))
+        .filter(Boolean);
+    const priorityRegionIds = new Set(PRIORITY_REGION_IDS);
+    const remainingRegions = regions
+        .filter((region) => !priorityRegionIds.has(Number(region.regionId)))
+        .sort((left, right) => regionName(left).localeCompare(regionName(right)));
+
+    return [...priorityRegions, ...remainingRegions];
+};
+
 function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
     const handleToggle = () => {
         toggleCat(group.id);
@@ -127,6 +163,7 @@ const ItemIcon = ({ typeId, name }) => {
 export function MarketBrowser() {
     const { regionId, typeId } = useParams();
     const navigate = useNavigate();
+    const activeTypeId = typeId ? Number(typeId) : DEFAULT_MARKET_TYPE_ID;
 
     const [categories, setCategories] = useState([])
     const [expandedCats, setExpandedCats] = useState([])
@@ -138,7 +175,7 @@ export function MarketBrowser() {
 
     // Selected item state (URL과 categories로부터 유도된 상태로 관리하여 Cascading 렌더링 방지)
     const selectedItem = (() => {
-        if (!typeId || categories.length === 0) {
+        if (!activeTypeId) {
             return {
                 id: null,
                 name: 'Select an item',
@@ -148,7 +185,19 @@ export function MarketBrowser() {
                 change: '0%'
             };
         }
-        const found = findTypeInTree(categories, Number(typeId));
+        if (categories.length === 0) {
+            return activeTypeId === DEFAULT_MARKET_TYPE_ID
+                ? DEFAULT_MARKET_ITEM
+                : {
+                    id: activeTypeId,
+                    name: `Type ${activeTypeId}`,
+                    categoryPath: [],
+                    description: '',
+                    avgPrice: '0.00',
+                    change: '0%'
+                };
+        }
+        const found = findTypeInTree(categories, activeTypeId);
         if (found) {
             return {
                 id: found.type.id,
@@ -159,14 +208,16 @@ export function MarketBrowser() {
                 change: '0%'
             };
         }
-        return {
-            id: null,
-            name: 'Select an item',
-            categoryPath: [],
-            description: '',
-            avgPrice: '0.00',
-            change: '0%'
-        };
+        return activeTypeId === DEFAULT_MARKET_TYPE_ID
+            ? DEFAULT_MARKET_ITEM
+            : {
+                id: activeTypeId,
+                name: `Type ${activeTypeId}`,
+                categoryPath: [],
+                description: '',
+                avgPrice: '0.00',
+                change: '0%'
+            };
     })();
 
 
@@ -174,7 +225,8 @@ export function MarketBrowser() {
     const [sellOrders, setSellOrders] = useState([])
     const [buyOrders, setBuyOrders] = useState([])
     const [regions, setRegions] = useState([])
-    const [selectedRegion, setSelectedRegion] = useState(10000002)
+    const [selectedRegion, setSelectedRegion] = useState(ALL_REGIONS_ID)
+    const sortedRegions = useMemo(() => sortMarketRegions(regions), [regions]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -195,12 +247,15 @@ export function MarketBrowser() {
     // 1. URL 파라미터 변경 시 주문 데이터만 조회 (categories 의존성 제거)
     useEffect(() => {
         const fetchOrders = async () => {
-            if (!typeId) return;
-            const rId = regionId ? Number(regionId) : 10000002;
+            const requestedRegionId = regionId ? Number(regionId) : ALL_REGIONS_ID;
+            const rId = regionIdForType(requestedRegionId, activeTypeId);
             setSelectedRegion(rId);
+            if (requestedRegionId !== rId) {
+                navigate(`/market/region/${rId}/type/${activeTypeId}`, { replace: true });
+            }
 
             try {
-                const response = await marketBrowserApi.getOrdersUnified(rId, Number(typeId));
+                const response = await marketBrowserApi.getOrdersUnified(rId, activeTypeId);
                 setSellOrders(response.sellOrders || []);
                 setBuyOrders(response.buyOrders || []);
             } catch (err) {
@@ -208,7 +263,7 @@ export function MarketBrowser() {
             }
         };
         fetchOrders();
-    }, [regionId, typeId]);
+    }, [activeTypeId, navigate, regionId]);
 
 
     const toggleCat = (id) => {
@@ -218,7 +273,8 @@ export function MarketBrowser() {
     }
 
     const handleSelectType = (type) => {
-        navigate(`/market/region/${selectedRegion}/type/${type.id}`);
+        const nextRegionId = regionIdForType(selectedRegion, type.id);
+        navigate(`/market/region/${nextRegionId}/type/${type.id}`);
     }
 
     return (
@@ -238,14 +294,16 @@ export function MarketBrowser() {
                         className="bg-background border border-border rounded-md px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-secondary cursor-pointer"
                         value={selectedRegion}
                         onChange={(e) => {
-                            const newRegionId = Number(e.target.value);
+                            const requestedRegionId = Number(e.target.value);
+                            const newRegionId = regionIdForType(requestedRegionId, selectedItem.id);
                             setSelectedRegion(newRegionId);
                             if (selectedItem.id) {
                                 navigate(`/market/region/${newRegionId}/type/${selectedItem.id}`);
                             }
                         }}
                     >
-                        {regions.map(r => (
+                        <option value={ALL_REGIONS_ID}>All Regions</option>
+                        {sortedRegions.map(r => (
                             <option key={r.regionId} value={r.regionId}>{r.name}</option>
                         ))}
                     </select>
@@ -387,4 +445,3 @@ export function MarketBrowser() {
         </div>
     )
 }
-
