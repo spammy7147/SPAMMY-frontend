@@ -1221,8 +1221,8 @@ function BomTree({
             })
 
             setConnectors({
-                width: Math.max(content.scrollWidth, content.clientWidth, gridWidth),
-                height: Math.max(content.scrollHeight, content.clientHeight, gridHeight),
+                width: gridWidth,
+                height: gridHeight,
                 paths,
             })
         }

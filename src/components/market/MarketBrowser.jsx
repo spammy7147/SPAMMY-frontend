@@ -94,7 +94,7 @@ function SortHeader({ label, sortKey, sort, onSort, align = 'left' }) {
         <th
             scope="col"
             aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-            className={cn('py-2 text-foreground-dim font-medium', align === 'right' ? 'px-2 text-right' : 'px-4 text-left')}
+            className={cn('py-1.5 text-foreground-dim font-medium', align === 'right' ? 'px-2 text-right' : 'px-4 text-left')}
         >
             <button
                 type="button"
@@ -128,27 +128,27 @@ function MarketGroupTree({ group, expandedCats, toggleCat, onSelectType }) {
     const isExpanded = expandedCats.includes(group.id) || group.isSearchResult;
 
     return (
-        <div className="ml-2 mt-1">
+        <div className="ml-1.5 mt-0.5">
             <button 
                 onClick={handleToggle}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal hover:bg-foreground/5 rounded-md transition-colors text-foreground text-left"
+                className="w-full flex items-center gap-1.5 px-1.5 py-1 text-[13px] leading-tight font-normal hover:bg-foreground/5 rounded transition-colors text-foreground text-left"
             >
                 {isExpanded ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                 <span className="truncate">{group.nameEn || group.nameKo}</span>
             </button>
             {isExpanded && (
-                <div className="pl-4">
+                <div className="pl-3">
                     {children.map(child => (
                         child.isType ? (
                             <button 
                                 key={`type-${child.id}`}
                                 onClick={() => onSelectType(child, group.nameEn || group.nameKo)}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-normal text-foreground hover:bg-foreground/5 rounded-md transition-colors text-left"
+                                className="w-full flex items-center gap-1.5 px-1.5 py-1 text-[13px] leading-tight font-normal text-foreground hover:bg-foreground/5 rounded transition-colors text-left"
                             >
                                 <img
                                     src={`https://images.evetech.net/types/${child.id}/icon?size=32`}
                                     alt=""
-                                    className="w-5 h-5 shrink-0 rounded bg-muted/20 object-contain"
+                                    className="w-4 h-4 shrink-0 rounded bg-muted/20 object-contain"
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                 />
                                 <span className="truncate">{child.nameEn || child.nameKo}</span>
@@ -367,45 +367,14 @@ export function MarketBrowser() {
 
     return (
         <div className="flex flex-col h-[850px] border border-border rounded-lg overflow-hidden bg-background">
-            {/* Global Top Bar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-muted/20">
-                <div className="flex items-center gap-6">
-                    <h1 className="text-lg font-bold tracking-wide flex items-center gap-2">
-                        <LayoutGrid className="w-5 h-5" />
-                        EVE Market Browser
-                    </h1>
-                    <button className="text-sm font-medium text-foreground-dim hover:text-foreground">About</button>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-foreground-dim">Region :</span>
-                    <select 
-                        className="bg-background border border-border rounded-md px-3 py-1 text-sm outline-none focus:ring-1 focus:ring-secondary cursor-pointer"
-                        value={selectedRegion}
-                        onChange={(e) => {
-                            const requestedRegionId = Number(e.target.value);
-                            const newRegionId = regionIdForType(requestedRegionId, selectedItem.id);
-                            setSelectedRegion(newRegionId);
-                            if (selectedItem.id) {
-                                navigate(`/market/region/${newRegionId}/type/${selectedItem.id}`);
-                            }
-                        }}
-                    >
-                        <option value={ALL_REGIONS_ID}>All Regions</option>
-                        {sortedRegions.map(r => (
-                            <option key={r.regionId} value={r.regionId}>{r.name}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
             <div className="flex flex-1 min-h-0">
                 {/* Sidebar: Categories */}
                 <aside className="w-80 border-r border-border flex flex-col bg-muted/10">
-                    <div className="flex items-center gap-6 px-4 pt-4 border-b border-border bg-background">
-                        <button className="text-sm font-semibold border-b-2 border-foreground pb-2 text-foreground">Browse</button>
-                        <button className="text-sm font-medium border-b-2 border-transparent pb-2 text-foreground-dim hover:text-foreground">Quickbar</button>
+                    <div className="flex items-center gap-5 px-3 pt-3 border-b border-border bg-background">
+                        <button className="text-sm font-semibold border-b-2 border-foreground pb-1.5 text-foreground">Browse</button>
+                        <button className="text-sm font-medium border-b-2 border-transparent pb-1.5 text-foreground-dim hover:text-foreground">Quickbar</button>
                     </div>
-                    <div className="p-3 border-b border-border">
+                    <div className="p-2 border-b border-border">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-dim" />
                             <input 
@@ -413,11 +382,11 @@ export function MarketBrowser() {
                                 placeholder="Search..." 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-background border border-border rounded-sm pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
+                                className="w-full bg-background border border-border rounded-sm pl-9 pr-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-secondary"
                             />
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                    <div className="flex-1 overflow-y-auto p-1.5 space-y-px">
                     {filteredCategories.map(cat => (
                         <MarketGroupTree 
                             key={cat.id} 
@@ -433,34 +402,56 @@ export function MarketBrowser() {
                 {/* Main Content Area */}
                 <main className="flex-1 flex flex-col min-w-0 bg-background">
                     {/* Item Header */}
-                    <header className="px-6 pt-6 border-b border-border">
-                        <div className="text-xs text-foreground-dim mb-3 flex items-center gap-2 flex-wrap">
-                            {selectedItem.categoryPath.length > 0 ? (
-                                selectedItem.categoryPath.map((catName, idx) => (
-                                    <span key={idx} className="flex items-center gap-2">
-                                        {idx > 0 && <span className="text-foreground-dim/40">/</span>}
-                                        <span>{catName}</span>
-                                    </span>
-                                ))
-                            ) : (
-                                <span>Category</span>
-                            )}
+                    <header className="px-5 pt-3 border-b border-border">
+                        <div className="mb-2 flex items-center justify-between gap-4">
+                            <div className="min-w-0 text-[11px] text-foreground-dim flex items-center gap-1.5 flex-wrap">
+                                {selectedItem.categoryPath.length > 0 ? (
+                                    selectedItem.categoryPath.map((catName, idx) => (
+                                        <span key={idx} className="flex items-center gap-1.5">
+                                            {idx > 0 && <span className="text-foreground-dim/40">/</span>}
+                                            <span>{catName}</span>
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span>Category</span>
+                                )}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-[11px] font-medium text-foreground-dim">Region :</span>
+                                <select
+                                    className="bg-background border border-border rounded-md px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-secondary cursor-pointer"
+                                    value={selectedRegion}
+                                    onChange={(e) => {
+                                        const requestedRegionId = Number(e.target.value);
+                                        const newRegionId = regionIdForType(requestedRegionId, selectedItem.id);
+                                        setSelectedRegion(newRegionId);
+                                        if (selectedItem.id) {
+                                            navigate(`/market/region/${newRegionId}/type/${selectedItem.id}`);
+                                        }
+                                    }}
+                                >
+                                    <option value={ALL_REGIONS_ID}>All Regions</option>
+                                    {sortedRegions.map(r => (
+                                        <option key={r.regionId} value={r.regionId}>{r.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-start">
-                            <div className="flex gap-4 items-center">
-                                <div className="w-14 h-14 bg-foreground/5 rounded flex items-center justify-center border border-border overflow-hidden shrink-0">
+                        <div className="flex justify-between items-center">
+                            <div className="flex gap-3 items-center">
+                                <div className="w-10 h-10 bg-foreground/5 rounded flex items-center justify-center border border-border overflow-hidden shrink-0">
                                     <ItemIcon key={selectedItem.id} typeId={selectedItem.id} name={selectedItem.name} />
                                 </div>
-                                <h2 className="text-3xl font-bold">{selectedItem.name}</h2>
+                                <h2 className="text-2xl font-bold leading-none">{selectedItem.name}</h2>
                             </div>
-                            <button className="px-3 py-1.5 hover:bg-foreground/5 rounded border border-border text-xs font-medium flex items-center gap-1.5 text-foreground-dim hover:text-foreground transition-colors">
-                                <span className="text-lg leading-none">+</span> Add To Quickbar
+                            <button className="px-2.5 py-1 hover:bg-foreground/5 rounded border border-border text-[11px] font-medium flex items-center gap-1 text-foreground-dim hover:text-foreground transition-colors">
+                                <span className="text-base leading-none">+</span> Add To Quickbar
                             </button>
                         </div>
                         
-                        <div className="flex items-center gap-6 mt-8">
-                            <button className="text-sm font-medium border-b-2 border-foreground pb-2 text-foreground">Market Data</button>
-                            <button className="text-sm font-medium border-b-2 border-transparent pb-2 text-foreground-dim hover:text-foreground">Price History</button>
+                        <div className="flex items-center gap-5 mt-4">
+                            <button className="text-sm font-medium border-b-2 border-foreground pb-1.5 text-foreground">Market Data</button>
+                            <button className="text-sm font-medium border-b-2 border-transparent pb-1.5 text-foreground-dim hover:text-foreground">Price History</button>
                         </div>
                     </header>
 
@@ -468,7 +459,7 @@ export function MarketBrowser() {
                     <div className="flex-1 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-4 overflow-hidden p-6">
                         {/* Sell Orders */}
                         <section className="min-h-0 flex flex-col overflow-hidden">
-                            <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="mb-2 flex items-center justify-between gap-3">
                                 <h3 className="text-xl font-bold tracking-tight">Sellers</h3>
                                 <span className="text-xs font-medium text-foreground-dim">{sortedSellOrders.length.toLocaleString()} orders</span>
                             </div>
@@ -484,13 +475,13 @@ export function MarketBrowser() {
                                     </thead>
                                     <tbody className="divide-y divide-transparent">
                                         {sortedSellOrders.length === 0 ? (
-                                            <tr><td colSpan="4" className="px-2 py-4 text-center text-foreground-dim">No sell orders found.</td></tr>
+                                            <tr><td colSpan="4" className="px-2 py-3 text-center text-foreground-dim">No sell orders found.</td></tr>
                                         ) : sortedSellOrders.map(order => (
                                             <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
-                                                <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-1.5 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
-                                                <td className="px-4 py-1.5 truncate max-w-[360px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
-                                                <td className="px-4 py-1.5 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
+                                                <td className="px-2 py-1 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-1 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1 truncate max-w-[360px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -500,7 +491,7 @@ export function MarketBrowser() {
 
                         {/* Buy Orders */}
                         <section className="min-h-0 flex flex-col overflow-hidden">
-                            <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="mb-2 flex items-center justify-between gap-3">
                                 <h3 className="text-xl font-bold tracking-tight">Buyers</h3>
                                 <span className="text-xs font-medium text-foreground-dim">{sortedBuyOrders.length.toLocaleString()} orders</span>
                             </div>
@@ -510,23 +501,23 @@ export function MarketBrowser() {
                                         <tr>
                                             <SortHeader label="Quantity" sortKey="quantity" sort={buySort} onSort={handleBuySort} align="right" />
                                             <SortHeader label="Price" sortKey="price" sort={buySort} onSort={handleBuySort} align="right" />
-                                            <th className="px-4 py-2 text-left font-medium">Range</th>
+                                            <th className="px-4 py-1.5 text-left font-medium">Range</th>
                                             <SortHeader label="Location" sortKey="location" sort={buySort} onSort={handleBuySort} />
-                                            <th className="px-4 py-2 text-right font-medium">Min Volume</th>
+                                            <th className="px-4 py-1.5 text-right font-medium">Min Volume</th>
                                             <SortHeader label="Expires in" sortKey="expires" sort={buySort} onSort={handleBuySort} />
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-transparent">
                                         {sortedBuyOrders.length === 0 ? (
-                                            <tr><td colSpan="6" className="px-2 py-4 text-center text-foreground-dim">No buy orders found.</td></tr>
+                                            <tr><td colSpan="6" className="px-2 py-3 text-center text-foreground-dim">No buy orders found.</td></tr>
                                         ) : sortedBuyOrders.map(order => (
                                             <tr key={order.orderId} className="hover:bg-foreground/5 transition-colors group">
-                                                <td className="px-2 py-1.5 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-1.5 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
-                                                <td className="px-4 py-1.5 text-foreground-dim">Region</td>
-                                                <td className="px-4 py-1.5 truncate max-w-[320px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
-                                                <td className="px-4 py-1.5 text-right font-mono text-foreground">1</td>
-                                                <td className="px-4 py-1.5 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
+                                                <td className="px-2 py-1 text-right font-mono text-foreground">{(order.volumeRemain || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-1 text-right font-mono text-foreground whitespace-nowrap">{(order.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} ISK</td>
+                                                <td className="px-4 py-1 text-foreground-dim">Region</td>
+                                                <td className="px-4 py-1 truncate max-w-[320px] text-foreground-dim group-hover:text-foreground">{order.locationName || order.locationId}</td>
+                                                <td className="px-4 py-1 text-right font-mono text-foreground">1</td>
+                                                <td className="px-4 py-1 text-foreground-dim font-mono whitespace-nowrap">{formatExpiresIn(order.issued, order.duration)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
